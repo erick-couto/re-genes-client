@@ -8,7 +8,9 @@ import math
 # --- CONFIGURAÇÃO DA ESPÉCIE MEMORIAM ---
 SPECIES_NAME = "Memoriam-v1"
 SERVER_URL = "wss://re-genes.is/ws/join?species=Memoriam"
-Q_TABLE_FILE = "qtable_memoriam.json"
+SPECIES_NAME = "Memoriam-v1"
+SERVER_URL = "wss://re-genes.is/ws/join?species=Memoriam"
+Q_TABLE_BASE_NAME = "qtable_memoriam"
 
 # Hiperparâmetros de Aprendizado
 ALPHA = 0.1      # Taxa de Aprendizado (0.1 = aprende devagar e consistente)
@@ -26,6 +28,17 @@ class MemoriamBrain:
         self.last_energy = 100
         
         # Carrega memória genética
+        # Carrega memória genética
+        self.species_desc = "Unknown"
+        self.memory_file = f"{Q_TABLE_BASE_NAME}_Unknown.json"
+        
+    def set_phenotype(self, species_desc: str):
+        """Define o fenótipo e carrega a memória apropriada."""
+        # Sanitiza o nome (Gigante Lento -> Gigante_Lento)
+        safe_name = species_desc.replace(" ", "_").replace("(", "").replace(")", "").strip()
+        self.species_desc = safe_name
+        self.memory_file = f"{Q_TABLE_BASE_NAME}_{safe_name}.json"
+        print(f"🧬 Fenótipo detectado: {species_desc} -> Usando memória: {self.memory_file}")
         self.load_memory()
 
     def get_state_key(self, vision, energy):
@@ -127,23 +140,35 @@ class MemoriamBrain:
         self.q_table[self.last_state][self.last_action] = new_value
 
     def save_memory(self):
+        if not self.memory_file: return
+        
         try:
-            with open(Q_TABLE_FILE, 'w') as f:
+            # Atomic Write: Write to temp, then rename
+            temp_file = self.memory_file + ".tmp"
+            with open(temp_file, 'w') as f:
                 json.dump(self.q_table, f)
-            print(f"💾 Memória Salva: {len(self.q_table)} estados conhecidos.")
+            
+            # Atomic replacement
+            if os.path.exists(self.memory_file):
+                os.remove(self.memory_file)
+            os.rename(temp_file, self.memory_file)
+            
+            print(f"💾 Memória Salva ({self.species_desc}): {len(self.q_table)} estados.")
         except Exception as e:
             print(f"Erro ao salvar memória: {e}")
 
     def load_memory(self):
-        if os.path.exists(Q_TABLE_FILE):
+        if os.path.exists(self.memory_file):
             try:
-                with open(Q_TABLE_FILE, 'r') as f:
+                with open(self.memory_file, 'r') as f:
                     self.q_table = json.load(f)
-                print(f"🧠 Memória Carregada: {len(self.q_table)} estados conhecidos.")
+                print(f"🧠 Memória Carregada ({self.species_desc}): {len(self.q_table)} estados.")
             except:
-                print("🧠 Cérebro novo (Memória vazia).")
+                print(f"🧠 Cérebro novo para {self.species_desc} (Memória vazia/corrompida).")
+                self.q_table = {}
         else:
-            print("🧠 Cérebro novo (Memória vazia).")
+            print(f"🧠 Cérebro novo para {self.species_desc} (Primeira vez).")
+            self.q_table = {}
 
 
 async def viver_uma_vida(geracao, brain: MemoriamBrain):
@@ -157,7 +182,12 @@ async def viver_uma_vida(geracao, brain: MemoriamBrain):
             welcome_msg = await websocket.recv()
             welcome_data = json.loads(welcome_msg)
             my_id = welcome_data.get("id")
-            print(f"✅ Nasceu: {my_id}")
+            
+            # Define fenótipo para carregar a memória correta
+            species_desc = welcome_data.get("species", "Unknown").split("(")[0].strip() # Remove (Filha de...)
+            brain.set_phenotype(species_desc)
+            
+            print(f"✅ Nasceu: {my_id} ({species_desc})")
             
             alive = True
             tick_vida = 0
