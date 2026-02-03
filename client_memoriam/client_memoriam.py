@@ -18,7 +18,7 @@ ALPHA = 0.1
 GAMMA = 0.9
 EPSILON_START = 1.0
 EPSILON_MIN = 0.05
-EPSILON_DECAY = 0.995
+EPSILON_DECAY = 0.90 # Decaimento por Geração (10% mais confiante a cada gen)
 
 class MemoriamBrain:
     """
@@ -64,7 +64,7 @@ class MemoriamBrain:
             if os.path.exists(self.filename):
                 os.remove(self.filename)
             os.rename(temp_file, self.filename)
-            print(f"💾 [{self.species_name}] Salvo. {len(self.q_table)} estados.")
+            print(f"💾 [{self.species_name}] Salvo. {len(self.q_table)} estados. Eps: {self.epsilon:.2f}")
         except Exception as e:
             print(f"❌ Erro ao salvar {self.filename}: {e}")
 
