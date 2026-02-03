@@ -5,7 +5,7 @@ import random
 import time
 
 # URL do Servidor (Já com WSS para HTTPS)
-SERVER_URL = "wss://re-genes.is/ws/join"
+SERVER_URL = "wss://re-genes.is/ws/join?species=Prokaryota"
 
 async def viver_uma_vida(geracao):
     """
