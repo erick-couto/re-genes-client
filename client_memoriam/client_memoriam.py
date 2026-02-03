@@ -49,10 +49,16 @@ class MemoriamBrain:
     def save(self):
         try:
             temp_file = self.filename + ".tmp"
+            
+            # Round values for cleaner JSON
+            clean_table = {}
+            for state, actions in self.q_table.items():
+                clean_table[state] = {k: round(v, 4) for k, v in actions.items()}
+
             with open(temp_file, 'w') as f:
                 json.dump({
                     "epsilon": self.epsilon,
-                    "q_table": self.q_table
+                    "q_table": clean_table
                 }, f)
             
             if os.path.exists(self.filename):
