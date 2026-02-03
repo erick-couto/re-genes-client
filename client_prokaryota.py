@@ -50,6 +50,10 @@ async def viver_uma_vida(geracao):
                     current_tick = data['tick']
                     
                     # 2. CÉREBRO (Toma decisão)
+                    # A Espécie Prokaryota ignora a visão e age aleatoriamente
+                    vision = data.get("vision") # Recebe Matriz 3x3x3 (Obstacles, Scent, Enemies)
+                    energy_sector = data.get("energy")
+
                     actions = ["move", "stay"]
                     directions = ["UP", "DOWN", "LEFT", "RIGHT"]
                     
@@ -62,7 +66,13 @@ async def viver_uma_vida(geracao):
                     await websocket.send(json.dumps(decision))
 
                     if tick_vida % 10 == 0: 
-                        print(f"[{my_id}] Tick {current_tick} | Energia: {energy}")
+                        vision_status = "Blind"
+                        if vision:
+                            # Tenta ler o cheiro (Canal 1, Centro 1,1)
+                            center_scent = vision[1][1][1] 
+                            vision_status = f"Scent={center_scent:.2f}"
+                            
+                        print(f"[{my_id}] Tick {current_tick} | Energy: {energy} | {vision_status}")
                     tick_vida += 1
 
                     
