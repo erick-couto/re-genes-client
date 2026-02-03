@@ -5,7 +5,7 @@ import random
 import time
 
 # URL do Servidor (Já com WSS para HTTPS)
-SERVER_URL = "wss://ameba.vindo.app/ws/join"
+SERVER_URL = "wss://re-genes.is/ws/join"
 
 async def viver_uma_vida(geracao):
     """

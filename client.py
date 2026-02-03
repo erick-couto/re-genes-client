@@ -3,7 +3,7 @@ import websockets
 import json
 import random
 
-SERVER_URL = "ws://localhost:8080/ws/ameba_python_01"
+SERVER_URL = "wss://re-genes.is/ws/join"
 
 async def run_ameba():
     async with websockets.connect(SERVER_URL) as websocket:
