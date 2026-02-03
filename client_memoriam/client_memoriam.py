@@ -3,12 +3,14 @@ import websockets
 import json
 import random
 import os
+import sys
 from collections import  defaultdict
 
 # --- CONFIGURAÇÃO ---
 SERVER_URL = "wss://re-genes.is/ws/join?species=Memoriam"
 Q_TABLE_BASE_NAME = "qtable_memoriam"
-BATCH_SIZE = 20  # Amebas simultâneas
+Q_TABLE_BASE_NAME = "qtable_memoriam"
+DEFAULT_BATCH_SIZE = 1  # Standard Default if no args
 TICKS_PER_GEN = 2000 # Tempo máximo de vida por geração
 
 # Hiperparâmetros
@@ -223,7 +225,23 @@ async def main():
         
         # Spawns BATCH_SIZE amebas
         tasks = []
-        for i in range(BATCH_SIZE):
+        
+    # Init Batch from Arg
+    batch_size = DEFAULT_BATCH_SIZE
+    if len(sys.argv) > 1:
+        try:
+            batch_size = int(sys.argv[1])
+        except ValueError:
+            print(f"⚠️ Argumento inválido: {sys.argv[1]}. Usando Default: {batch_size}")
+            
+    print(f"🚀 Iniciando Simulador Memoriam | Batch Size: {batch_size}")
+
+    while True:
+        print(f"\n--- 🔄 GERAÇÃO {generation} | Size: {batch_size} ---")
+        
+        # Spawns BATCH_SIZE amebas
+        tasks = []
+        for i in range(batch_size):
              ameba = AgentAmeba(i, manager)
              tasks.append(ameba.run())
              
