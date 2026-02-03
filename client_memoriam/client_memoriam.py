@@ -220,12 +220,6 @@ async def main():
     manager = BrainManager()
     generation = 1
     
-    while True:
-        print(f"\n--- 🔄 GERAÇÃO {generation} ---")
-        
-        # Spawns BATCH_SIZE amebas
-        tasks = []
-        
     # Init Batch from Arg
     batch_size = DEFAULT_BATCH_SIZE
     if len(sys.argv) > 1:
