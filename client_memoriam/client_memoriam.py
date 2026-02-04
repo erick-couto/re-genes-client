@@ -222,43 +222,57 @@ class AgentAmeba:
             print(f"⚠️ Erro Ameba: {e}")
 
 # --- CONTROLE DA GERAÇÃO ---
-async def main():
-    manager = BrainManager()
-    generation = 1
-    
-    # Init Batch from Arg
-    batch_size = DEFAULT_BATCH_SIZE
-    if len(sys.argv) > 1:
-        try:
-            batch_size = int(sys.argv[1])
-        except ValueError:
-            print(f"⚠️ Argumento inválido: {sys.argv[1]}. Usando Default: {batch_size}")
-            
-    print(f"🚀 Iniciando Simulador Memoriam | Batch Size: {batch_size}")
-
+async def periodic_save(manager):
+    """Salva memória a cada 30 segundos sem parar a simulação"""
     while True:
-        print(f"\n--- 🔄 GERAÇÃO {generation} | Size: {batch_size} ---")
-        
-        # Spawns BATCH_SIZE amebas
-        tasks = []
-        for i in range(batch_size):
-             ameba = AgentAmeba(i, manager)
-             tasks.append(ameba.run())
-             
-        # Wait for all to die or finish
-        await asyncio.gather(*tasks)
-        
-        # End of Generation
-        print("\n💾 Salvando memórias...")
+        await asyncio.sleep(30)
+        print("\n💾 Auto-Save periódico...")
         manager.save_all()
         
-        # Decay Epsilon for all active brains
+        # Decay Epsilon Periodically
         for brain in manager.brains.values():
             brain.decay_epsilon()
+
+async def main():
+    manager = BrainManager()
+    
+    # Init Batch from Arg
+    target_population = DEFAULT_BATCH_SIZE
+    if len(sys.argv) > 1:
+        try:
+            target_population = int(sys.argv[1])
+        except ValueError:
+            print(f"⚠️ Argumento inválido: {sys.argv[1]}. Usando Default: {target_population}")
             
-        print(f"💤 Cooldown 2s...")
-        await asyncio.sleep(2)
-        generation += 1
+    print(f"🚀 Iniciando Simulador Memoriam | Alvo: {target_population} Amebas Simultâneas")
+
+    # Start Auto-Saver
+    asyncio.create_task(periodic_save(manager))
+    
+    active_tasks = set()
+    ameba_counter = 0
+
+    while True:
+        # 1. Fill Population
+        while len(active_tasks) < target_population:
+            ameba_counter += 1
+            ameba = AgentAmeba(ameba_counter, manager)
+            # Create task and add to set
+            task = asyncio.create_task(ameba.run())
+            active_tasks.add(task)
+            
+            # Remove reference when done
+            task.add_done_callback(active_tasks.discard)
+            
+        # 2. Wait for ANY death (to replenish immediately)
+        if active_tasks:
+            # Wait for at least one task to finish
+            done, pending = await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
+            
+            # Optional: Log death count or replacements
+            # print(f"💀 {len(done)} ameba(s) morreram. Reabastecendo...")
+        else:
+            await asyncio.sleep(1)
 
 if __name__ == "__main__":
     try:
