@@ -24,7 +24,7 @@ def get_best_genome(p):
             best = genome
     return best
 
-def simulate_brain(net):
+def simulate_brain(net, best_genome):
     print("\n🧠 --- SIMULAÇÃO DO CÉREBRO ---")
     
     # Scenarios: [Bias, En, St, S_U, S_D, S_L, S_R, W_U, W_D, W_L, W_R]
@@ -36,15 +36,29 @@ def simulate_brain(net):
         ("Parede DIR",            [1.0, 0.8, 0.0, 0,0,0,0, 0,0,0,1]),
         ("Comida CIMA",           [1.0, 0.5, 0.0, 1,0,0,0, 0,0,0,0]),
         ("Comida BAIXO",          [1.0, 0.5, 0.0, 0,1,0,0, 0,0,0,0]),
+        ("Comida ESQ",            [1.0, 0.5, 0.0, 0,0,1,0, 0,0,0,0]),
+        ("Comida DIR",            [1.0, 0.5, 0.0, 0,0,0,1, 0,0,0,0]),
     ]
     
     directions = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
     
-    for name, inputs in scenarios:
-        outputs = net.activate(inputs)
-        action_idx = outputs.index(max(outputs))
-        action = directions[action_idx]
-        print(f"📍 Cenário: {name:<20} -> Decisão: {action} (Out: {[f'{x:.2f}' for x in outputs]})")
+    with open("inspection_log.txt", "w") as log:
+        log.write(f"Checkpoint Used\n")
+        log.write(f"Best Genome ID: {best_genome.key} (Fitness: {best_genome.fitness})\n\n")
+        
+        for name, inputs in scenarios:
+            outputs = net.activate(inputs)
+            action_idx = outputs.index(max(outputs))
+            
+            chosen = directions[action_idx]
+            
+            out_fmt = [f"{x:.2f}" for x in outputs]
+            log.write(f"Scenario: {name}\n")
+            log.write(f"  Inputs: {inputs}\n")
+            log.write(f"  Output: {out_fmt}\n")
+            log.write(f"  Action: {chosen}\n\n")
+            
+    print("Log saved to inspection_log.txt")
 
 def main():
     # Load Config
@@ -70,7 +84,7 @@ def main():
     net = neat.nn.FeedForwardNetwork.create(best, config)
     
     # Simulate
-    simulate_brain(net)
+    simulate_brain(net, best)
 
 if __name__ == "__main__":
     main()

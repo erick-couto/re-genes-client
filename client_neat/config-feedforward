@@ -59,11 +59,11 @@ enabled_rate_to_false_add = 0.0
 # Connection weight options
 weight_init_type        = gaussian
 weight_init_mean        = 0.0
-weight_init_stdev       = 0.1
-weight_max_value        = 10
-weight_min_value        = -10
-weight_mutate_power     = 0.5
-weight_mutate_rate      = 0.8
+weight_init_stdev       = 1.0 
+weight_max_value        = 30
+weight_min_value        = -30
+weight_mutate_power     = 1.2
+weight_mutate_rate      = 0.9
 weight_replace_rate     = 0.1
 
 # Node add/remove rates
@@ -72,7 +72,7 @@ node_delete_prob        = 0.2
 
 # Network parameters
 num_hidden              = 0
-num_inputs              = 11
+num_inputs              = 27
 num_outputs             = 5
 
 [DefaultSpeciesSet]

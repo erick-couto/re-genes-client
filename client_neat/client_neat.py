@@ -5,54 +5,196 @@ import neat
 import os
 import math
 import pickle
-import numpy as np
+import sys
+import random
+from neat.math_util import mean
 
 # --- CONFIGURAÇÃO ---
 SERVER_URL = "wss://re-genes.is/ws/join?species=NEAT_Evo"
 CONFIG_FILE = "config-feedforward"
-CHECKPOINT_PREFIX = "neat-checkpoint-"
+CHECKPOINT_PREFIX = "neat-checkpoint-continuous-"
+AUTOSAVE_INTERVAL = 300  # Saves every 5 minutes (approx) or by event
+
+import itertools
+
+class PicklableCount:
+    """A replacement for itertools.count that CAN be pickled."""
+    def __init__(self, start=0):
+        self._current = start
+        
+    def __next__(self):
+        val = self._current
+        self._current += 1
+        return val
+        
+    def __iter__(self):
+        return self
+        
+    def get_current(self):
+        return self._current
+
+class ContinuousPopulation:
+    """
+    Manages a NEAT population for continuous (steady-state) evolution.
+    Instead of generations, we maintain a pool of genomes.
+    When one dies, we immediately breed a replacement.
+    """
+    def __init__(self, config_path, checkpoint_file=None):
+        self.config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                  neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                  config_path)
+        
+        if checkpoint_file and os.path.exists(checkpoint_file):
+            print(f"📂 Loading checkpoint: {checkpoint_file}")
+            self.population = neat.Checkpointer.restore_checkpoint(checkpoint_file)
+            self.p = self.population # Alias
+        else:
+            print("🌱 Creating new population...")
+            self.p = neat.Population(self.config)
+            
+        # Initialize internal NEAT structures if new
+        if not hasattr(self.p, 'generation'):
+            self.p.generation = 0
+        if not hasattr(self.p, 'species'):
+            self.p.species = neat.DefaultSpeciesSet(self.config.species_set_config, self.p.reporters)
+            
+        # FIX: itertools.count cannot be pickled. Replace with custom one if needed.
+        if hasattr(self.p.reproduction, 'genome_indexer'):
+            if isinstance(self.p.reproduction.genome_indexer, itertools.count):
+                # We need to guess current ID. DefaultReproduction doesn't expose it easily unless we iterate?
+                # Actually, max(genome keys) + 1 is safe.
+                next_id = 0
+                if self.p.population:
+                    next_id = max(self.p.population.keys()) + 1
+                self.p.reproduction.genome_indexer = PicklableCount(next_id)
+            
+        # We need to manually handle speciation and reproduction
+        # Ensure initial speciation
+        self.p.species.speciate(self.config, self.p.population, self.p.generation)
+        
+        # Keep track of active genomes (being simulated) to avoid simulating same genome twice
+        self.active_genome_ids = set()
+
+    def get_genome(self):
+        """
+        Returns a genome to simulate.
+        Strategy:
+        1. If there are unsued genomes in current pool, return one.
+        2. If all are busy/used, generate a NEW one (offspring).
+        """
+        # Try to find an inactive genome from current pool
+        for gid, genome in self.p.population.items():
+            if gid not in self.active_genome_ids and getattr(genome, 'fitness', None) is None:
+                self.active_genome_ids.add(gid)
+                return gid, genome
+                
+        # If we are here, all current genomes are either active or have fitness.
+        # It's time to breed a replacement for the "worst" or just adds to pool?
+        # Steady State: Remove worst, Breed new.
+        # Or simply Breed new and grow pool? NEAT usually has fixed pop size.
+        
+        # Simple Steady State Logic:
+        # 1. Speciate (Update species with current fitnesses)
+        self.p.species.speciate(self.config, self.p.population, self.p.generation)
+        
+        # 2. Spawn Child
+        # We use DefaultReproduction's logic but manually. 
+        # Since accessing internal reproduction logic is hard, we implement basic tournament here.
+        
+        child = self._breed_child()
+        
+
+        # 3. Add to population
+        if len(self.p.population) > self.config.pop_size * 2: # Cull looser cap
+             self._cull_population()
+             
+        self.p.population[child.key] = child
+        self.p.species.speciate(self.config, self.p.population, self.p.generation)
+        
+        self.active_genome_ids.add(child.key)
+        return child.key, child
+
+    def report_death(self, genome_id, fitness):
+        """Called when ameba dies."""
+        if genome_id in self.p.population:
+            self.p.population[genome_id].fitness = fitness
+        
+        if genome_id in self.active_genome_ids:
+            self.active_genome_ids.remove(genome_id)
+
+    def save_checkpoint(self):
+        self.p.species.speciate(self.config, self.p.population, self.p.generation)
+        filename = f"{CHECKPOINT_PREFIX}auto"
+        # print(f"💾 Saving checkpoint to {filename}...")
+        with open(filename, 'wb') as f:
+            pickle.dump(self.p, f)
+
+    def _breed_child(self):
+        valid_genomes = [g for g in self.p.population.values() if g.fitness is not None]
+        if not valid_genomes:
+            return self.config.genome_type(self.p.reproduction.ancestry.next())
+        
+        # Tournament Selection - Favor active/fit parents
+        parent1 = self._tournament(valid_genomes)
+        parent2 = self._tournament(valid_genomes)
+        
+        gid = next(self.p.reproduction.genome_indexer)
+        child = self.config.genome_type(gid)
+        child.configure_crossover(parent1, parent2, self.config.genome_config)
+        child.mutate(self.config.genome_config)
+        return child
+
+    def _tournament(self, genomes, k=3): # Increased K for stronger selection pressure
+        candidates = random.sample(genomes, min(len(genomes), k))
+        return max(candidates, key=lambda g: g.fitness)
+
+    def _cull_population(self):
+        sorted_pop = sorted(self.p.population.items(), key=lambda item: item[1].fitness if item[1].fitness is not None else -9999)
+        to_remove_count = int(len(sorted_pop) * 0.2) # Cull 20%
+        for i in range(to_remove_count):
+            gid, _ = sorted_pop[i]
+            if gid not in self.active_genome_ids:
+                del self.p.population[gid]
+
+# Global Stats
+ACTION_STATS = {"UP":0, "DOWN":0, "LEFT":0, "RIGHT":0, "STAY":0}
+TOTAL_ACTIONS = 0
 
 class NeatAmeba:
-    def __init__(self, genome, config, genome_id):
+    def __init__(self, genome, config, genome_id, population_manager):
         self.genome = genome
         self.config = config
         self.genome_id = genome_id
+        self.manager = population_manager
         
-        # Cria a Rede Neural (FeedForward)
         self.net = neat.nn.FeedForwardNetwork.create(genome, config)
-        
-        # Estado
         self.fitness = 0.0
         self.alive = True
-        self.max_ticks = 2000 # Timeout para evitar loops infinitos de camping
-        
+        self.max_ticks = 2000 
         self.energy_gained = 0
         self.last_energy = 100
+        # self.start_pos = None # Could track displacement
         
     async def run(self):
-        """Vida de uma ameba"""
+        global TOTAL_ACTIONS
         try:
             async with websockets.connect(SERVER_URL) as websocket:
                 # Handshake
                 welcome = await websocket.recv()
                 welcome_data = json.loads(welcome)
                 self.my_id = welcome_data.get("id")
-                print(f"✅ [G{self.genome_id}] Connected as {self.my_id}")
+                # print(f"🧬 [G{self.genome_id}] Spawned as {self.my_id}")
                 
-                # Loop de Vida
                 tick_count = 0
                 while self.alive and tick_count < self.max_ticks:
                     try:
-                        # print(f"[G{self.genome_id}] Waiting for msg...")
                         msg = await websocket.recv()
                         data = json.loads(msg)
                         
                         if data['type'] == 'UPDATE':
                             if not data['alive']:
-                                print(f"💀 [G{self.genome_id}] Died.")
                                 self.alive = False
                             
-                            # Atualiza energia para cálculo de fitness
                             current_energy = data.get('energy', 0)
                             delta = current_energy - self.last_energy
                             if delta > 0:
@@ -61,166 +203,194 @@ class NeatAmeba:
                             continue
     
                         if data['type'] == 'TICK':
-                            # Visão e Sensores
-                            vision = data.get('vision') # 3 layers of 9x9
+                            vision = data.get('vision') 
                             energy = data.get('energy', 0)
                             stomach = data.get('stomach', 0)
                             
-                            # Processa Inputs
                             inputs = self.process_inputs(vision, energy, stomach)
-                            
-                            # Ativa Rede Neural
                             outputs = self.net.activate(inputs)
                             
-                            # Escolhe Ação (Argmax)
-                            # 0: UP, 1: DOWN, 2: LEFT, 3: RIGHT, 4: STAY
                             action_idx = outputs.index(max(outputs))
                             
                             cmd = "stay"
                             direction = "UP"
+                            act_label = "STAY"
                             
                             if action_idx == 0: 
-                                cmd, direction = "move", "UP"
-                            elif action_idx == 1:
-                                cmd, direction = "move", "DOWN"
-                            elif action_idx == 2:
-                                cmd, direction = "move", "LEFT"
-                            elif action_idx == 3:
-                                cmd, direction = "move", "RIGHT"
+                                cmd, direction, act_label = "move", "UP", "UP"
+                            elif action_idx == 1: 
+                                cmd, direction, act_label = "move", "DOWN", "DOWN"
+                            elif action_idx == 2: 
+                                cmd, direction, act_label = "move", "LEFT", "LEFT"
+                            elif action_idx == 3: 
+                                cmd, direction, act_label = "move", "RIGHT", "RIGHT"
                             
-                            # Envia
-                            decision = {
+                            # Stats Update
+                            ACTION_STATS[act_label] += 1
+                            TOTAL_ACTIONS += 1
+                            
+                            await websocket.send(json.dumps({
                                 "action": cmd,
                                 "direction": direction
-                            }
-                            await websocket.send(json.dumps(decision))
+                            }))
                             
-                            # Log detalhado para Debug (Genome 1)
-                            if self.genome_id == 1 and tick_count % 20 == 0:
-                               # Formata inputs para leitura fácil
-                               # [Bias, En, St, S_U, S_D, S_L, S_R, W_U, W_D, W_L, W_R]
-                               in_fmt = [f"{x:.1f}" for x in inputs]
-                               out_fmt = [f"{x:.1f}" for x in outputs]
-                               # print(f"[G1] T:{tick_count} IN:{in_fmt} OUT:{out_fmt} -> {direction}")
+                            if self.genome_id % 5 == 0 and tick_count % 50 == 0:
+                               # Log occasionally for sample
+                               pass 
                             
                             tick_count += 1
                             
                     except websockets.exceptions.ConnectionClosed:
-                        print(f"🔌 [Genome {self.genome_id}] Connection Closed.")
                         break
                     except Exception as e:
-                        print(f"⚠️ [Genome {self.genome_id}] Runtime Error: {e}")
+                        print(f"⚠️ [G{self.genome_id}] Error: {e}")
                         break
                         
-                # Fim da Vida
-                self.genome.fitness = tick_count + (self.energy_gained * 2)
-                # print(f"💀 [Genome {self.genome_id}] Died. Fitness: {self.genome.fitness:.1f}")
+                # End of Life
+                # Fitness strategy:
+                # 1. Heavily Reward Eating (Energy Gained)
+                # 2. Lightly Reward Survival (Tick Count) but capped or scaled down
+                # If they just stay still, they get ~200 ticks. If they eat 1 food (10 energy), they should beat that.
+                
+                eating_score = self.energy_gained * 20.0 # 1 Food = 200 points
+                survival_score = tick_count * 0.1       # 2000 ticks = 200 points
+                
+                final_fitness = eating_score + survival_score
+                
+                # print(f"💀 [G{self.genome_id}] Died. Fitness: {final_fitness:.1f} (Eat: {self.energy_gained})")
+                self.manager.report_death(self.genome_id, final_fitness)
 
         except Exception as e:
-            print(f"❌ [Genome {self.genome_id}] Setup Error: {e}")
-            self.genome.fitness = 0
+            print(f"❌ [G{self.genome_id}] Setup Error: {e}")
+            self.manager.report_death(self.genome_id, 0)
+
+
+    def _log_debug(self, inputs, outputs, dir):
+        def fmt(x): return f"{x:.1f}"
+        print(f"[G{self.genome_id}] E:{fmt(inputs[1])} S:{fmt(inputs[2])} -> {dir}")
 
     def process_inputs(self, vision, energy, stomach):
         """
-        Transforma a matriz de visão bruta e status em 11 inputs para a NN.
-        Inputs: Bias(1), Energy(1), Stomach(1), Scent(4), Wall(4)
+        New Topology: 27 Inputs
+        I0: Bias
+        I1: Energy (norm)
+        I2: Stomach (norm)
+        I3-I10: Walls (8 Neighbors)
+        I11-I18: Food (8 Neighbors - Gradients)
+        I19-I26: Enemies (8 Neighbors - Size Gene)
         """
-        # Se visão for nula (cego), retorna zeros
-        # 3 layers of 9x9. If radius changes, this might break.
         if not vision or len(vision[0]) < 9: 
-            return [0.0] * 11
+            return [0.0] * 27
         
-        # Vision Layers: 0=Obstacles, 1=Scent, 2=Enemies
-        # Grid 9x9. Centro é (4,4)
+        # Center is at 4,4 (Radius 4)
+        cx, cy = 4, 4
         
-        # 1. Sensores de Obstáculos (Perto)
-        # Verifica células adjacentes diretas
-        # (y, x)
-        wall_up    = 1.0 if vision[0][3][4] > 0 else 0.0
-        wall_down  = 1.0 if vision[0][5][4] > 0 else 0.0
-        wall_left  = 1.0 if vision[0][4][3] > 0 else 0.0
-        wall_right = 1.0 if vision[0][4][5] > 0 else 0.0
-        
-        # 2. Sensores de Cheiro (Gradiente/Soma por quadrante ou direção?)
-        scent_up    = vision[1][3][4]
-        scent_down  = vision[1][5][4]
-        scent_left  = vision[1][4][3]
-        scent_right = vision[1][4][5]
-        
-        # Normalização de Energia (0 a 100+)
-        norm_energy = min(energy, 200) / 200.0
-        
-        # Stomach (Agora temos via main.py update)
-        norm_stomach = min(stomach, 50) / 50.0 
-        
-        bias = 1.0
-        
-        return [
-            bias,
-            norm_energy,
-            norm_stomach,
-            scent_up, scent_down, scent_left, scent_right,
-            wall_up, wall_down, wall_left, wall_right
+        # Directions for 8 neighbors (Moore): N, S, W, E, NW, NE, SW, SE
+        # Note: Array is [y][x]. 
+        # Up (N) is y-1. Down (S) is y+1.
+        neighbors = [
+            (cy-1, cx),   # N
+            (cy+1, cx),   # S
+            (cy, cx-1),   # W
+            (cy, cx+1),   # E
+            (cy-1, cx-1), # NW
+            (cy-1, cx+1), # NE
+            (cy+1, cx-1), # SW
+            (cy+1, cx+1)  # SE
         ]
-
-async def eval_genomes_async(genomes, config):
-    """
-    Roda a avaliação de todos os genomas em paralelo (AsyncIO)
-    """
-    tasks = []
-    print(f"🚀 Iniciando Geração com {len(genomes)} amebas...")
-    
-    for genome_id, genome in genomes:
-        genome.fitness = 0
-        ameba = NeatAmeba(genome, config, genome_id)
-        tasks.append(ameba.run())
         
-    await asyncio.gather(*tasks)
-    
-    # Stats da Geração
-    fits = [g.fitness for _, g in genomes]
-    print(f"📊 Geração Finalizada. Max: {max(fits):.1f}, Avg: {sum(fits)/len(fits):.1f}")
-    
-    # Dump do Melhor Cérebro
-    best_genome = max(genomes, key=lambda x: x[1].fitness)[1]
-    print(f"\n🧠 Best Genome Brain ({best_genome.key}):")
-    # Imprime conexões (Input -> Output) relevantes
-    for cg in best_genome.connections.values():
-        if cg.enabled:
-            print(f"   Node {cg.key[0]} -> {cg.key[1]}: w={cg.weight:.3f}")
-    print("---------------------------------------------------\n")
+        # Extract Layers
+        layer_walls = vision[0]
+        layer_scent = vision[1]
+        layer_enemy = vision[2]
+        
+        inputs = []
+        
+        # 1. Body Stats
+        inputs.append(1.0) # Bias
+        inputs.append(min(energy, 200) / 200.0)
+        inputs.append(min(stomach, 50) / 50.0)
+        
+        # 2. Walls (8)
+        for y, x in neighbors:
+            inputs.append(1.0 if layer_walls[y][x] > 0 else 0.0)
+            
+        # 3. Food (8) - Direct Decimal Gradient
+        for y, x in neighbors:
+            inputs.append(layer_scent[y][x])
+            
+        # 4. Enemies (8) - Size Gene
+        for y, x in neighbors:
+            inputs.append(layer_enemy[y][x])
+            
+        return inputs
 
-
-def eval_genomes(genomes, config):
-    """Wrapper síncrono para o NEAT chamar"""
-    asyncio.run(eval_genomes_async(genomes, config))
-
-
-def run_neat():
+async def run_simulation(target_count):
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, CONFIG_FILE)
+    
+    # Init Continuous Population Manager
+    pop = ContinuousPopulation(config_path, checkpoint_file=f"{CHECKPOINT_PREFIX}auto")
+    
+    print(f"🚀 Starting Continuous NEAT | Target: {target_count} Amebas")
+    
+    active_tasks = set()
+    
+    # Autosaving Loop
+    async def auto_saver():
+        while True:
+            await asyncio.sleep(AUTOSAVE_INTERVAL)
+            pop.save_checkpoint()
 
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                         config_path)
+    # Stats Reporter Loop
+    async def stats_reporter():
+        while True:
+            await asyncio.sleep(10)
+            if TOTAL_ACTIONS > 0:
+                print("\n📊 [STATS] Action Distribution (Last 10s):")
+                total = TOTAL_ACTIONS
+                for k, v in ACTION_STATS.items():
+                    pct = (v / total) * 100
+                    bar = "█" * int(pct/5)
+                    print(f"   {k:5}: {pct:5.1f}% {bar}")
+                print(f"   Total Actions: {total}\n")
+            
+    asyncio.create_task(auto_saver())
+    asyncio.create_task(stats_reporter())
 
-    # Cria ou carrega população
-    p = neat.Population(config)
-
-    # Reporters
-    p.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer(1, filename_prefix="neat-checkpoint-"))
-
-    # Roda (x Gerações)
-    winner = p.run(eval_genomes, 50)
-
-    # Salva o vencedor
-    with open("winner.pkl", "wb") as f:
-        pickle.dump(winner, f)
-        
-    print(f'\n🏆 Best genome:\n{winner}')
+    # Main Spawn Loop
+    while True:
+        # Refill
+        while len(active_tasks) < target_count:
+            # 1. Get Genome
+            gid, genome = pop.get_genome()
+            
+            # 2. Create Agent
+            ameba = NeatAmeba(genome, pop.config, gid, pop)
+            
+            # 3. Spawn Task
+            task = asyncio.create_task(ameba.run())
+            active_tasks.add(task)
+            task.add_done_callback(active_tasks.discard)
+            
+            # Stagger spawns slightly to avoid connection bursts
+            await asyncio.sleep(0.1)
+            
+        # Wait for something to finish
+        if active_tasks:
+            await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
+        else:
+            await asyncio.sleep(1)
 
 if __name__ == '__main__':
-    run_neat()
+    target = 1
+    if len(sys.argv) > 1:
+        try:
+            target = int(sys.argv[1])
+        except:
+            pass
+    
+    try:
+        asyncio.run(run_simulation(target))
+    except KeyboardInterrupt:
+        print("\n👋 Stopping...")
