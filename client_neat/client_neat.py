@@ -16,6 +16,7 @@ CHECKPOINT_PREFIX = "neat-checkpoint-continuous-"
 AUTOSAVE_INTERVAL = 300  # Saves every 5 minutes (approx) or by event
 
 import itertools
+import gzip
 
 class PicklableCount:
     """A replacement for itertools.count that CAN be pickled."""
@@ -46,8 +47,13 @@ class ContinuousPopulation:
         
         if checkpoint_file and os.path.exists(checkpoint_file):
             print(f"📂 Loading checkpoint: {checkpoint_file}")
-            self.population = neat.Checkpointer.restore_checkpoint(checkpoint_file)
-            self.p = self.population # Alias
+            try:
+                with gzip.open(checkpoint_file) as f:
+                    self.p = pickle.load(f)
+            except Exception as e:
+                print(f"⚠️ Failed to load custom checkpoint: {e}")
+                print("🔄 Attempting legacy restore...")
+                self.p = neat.Checkpointer.restore_checkpoint(checkpoint_file)
         else:
             print("🌱 Creating new population...")
             self.p = neat.Population(self.config)
@@ -126,12 +132,18 @@ class ContinuousPopulation:
         self.p.species.speciate(self.config, self.p.population, self.p.generation)
         filename = f"{CHECKPOINT_PREFIX}auto"
         # print(f"💾 Saving checkpoint to {filename}...")
-        with open(filename, 'wb') as f:
+        with gzip.open(filename, 'w', compresslevel=5) as f:
             pickle.dump(self.p, f)
 
     def _breed_child(self):
         valid_genomes = [g for g in self.p.population.values() if g.fitness is not None]
         if not valid_genomes:
+            # Setup innovation tracker if missing (Critical for first run/new pop)
+            tracker = getattr(self.config.genome_config, 'innovation_tracker', None)
+            if tracker is None:
+                if hasattr(self.p.reproduction, 'innovation_tracker'):
+                    self.config.genome_config.innovation_tracker = self.p.reproduction.innovation_tracker
+            
             return self.config.genome_type(self.p.reproduction.ancestry.next())
         
         # Tournament Selection - Favor active/fit parents
@@ -140,6 +152,21 @@ class ContinuousPopulation:
         
         gid = next(self.p.reproduction.genome_indexer)
         child = self.config.genome_type(gid)
+        
+        # Setup innovation tracker for mutation
+        # Check if missing OR None
+        tracker = getattr(self.config.genome_config, 'innovation_tracker', None)
+        if tracker is None:
+             if hasattr(self.p.reproduction, 'innovation_tracker'):
+                 self.config.genome_config.innovation_tracker = self.p.reproduction.innovation_tracker
+             else:
+                 # Fallback: Create new tracker if none exists
+                 print("⚠️ Creating new InnovationTracker (Fallback)")
+                 from neat.innovation import InnovationTracker
+                 self.config.genome_config.innovation_tracker = InnovationTracker()
+                 # Attach to reproduction to persist it
+                 self.p.reproduction.innovation_tracker = self.config.genome_config.innovation_tracker
+
         child.configure_crossover(parent1, parent2, self.config.genome_config)
         child.mutate(self.config.genome_config)
         return child
@@ -359,28 +386,32 @@ async def run_simulation(target_count):
     asyncio.create_task(stats_reporter())
 
     # Main Spawn Loop
-    while True:
-        # Refill
-        while len(active_tasks) < target_count:
-            # 1. Get Genome
-            gid, genome = pop.get_genome()
-            
-            # 2. Create Agent
-            ameba = NeatAmeba(genome, pop.config, gid, pop)
-            
-            # 3. Spawn Task
-            task = asyncio.create_task(ameba.run())
-            active_tasks.add(task)
-            task.add_done_callback(active_tasks.discard)
-            
-            # Stagger spawns slightly to avoid connection bursts
-            await asyncio.sleep(0.1)
-            
-        # Wait for something to finish
-        if active_tasks:
-            await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
-        else:
-            await asyncio.sleep(1)
+    try:
+        while True:
+            # Refill
+            while len(active_tasks) < target_count:
+                # 1. Get Genome
+                gid, genome = pop.get_genome()
+                
+                # 2. Create Agent
+                ameba = NeatAmeba(genome, pop.config, gid, pop)
+                
+                # 3. Spawn Task
+                task = asyncio.create_task(ameba.run())
+                active_tasks.add(task)
+                task.add_done_callback(active_tasks.discard)
+                
+                # Stagger spawns slightly to avoid connection bursts
+                await asyncio.sleep(0.1)
+                
+            # Wait for something to finish
+            if active_tasks:
+                await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
+            else:
+                await asyncio.sleep(1)
+    finally:
+        print("\n💾 Saving checkpoint before exit...")
+        pop.save_checkpoint()
 
 if __name__ == '__main__':
     target = 1
