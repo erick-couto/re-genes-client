@@ -50,10 +50,16 @@ class ContinuousPopulation:
             try:
                 with gzip.open(checkpoint_file) as f:
                     self.p = pickle.load(f)
+                # Unify config: use the one from the population if it exists, otherwise the new one
+                if hasattr(self.p, 'config'):
+                    self.config = self.p.config
+                else:
+                    self.p.config = self.config
             except Exception as e:
                 print(f"⚠️ Failed to load custom checkpoint: {e}")
                 print("🔄 Attempting legacy restore...")
                 self.p = neat.Checkpointer.restore_checkpoint(checkpoint_file)
+                self.config = self.p.config
         else:
             print("🌱 Creating new population...")
             self.p = neat.Population(self.config)
@@ -64,15 +70,25 @@ class ContinuousPopulation:
         if not hasattr(self.p, 'species'):
             self.p.species = neat.DefaultSpeciesSet(self.config.species_set_config, self.p.reporters)
             
-        # FIX: itertools.count cannot be pickled. Replace with custom one if needed.
-        if hasattr(self.p.reproduction, 'genome_indexer'):
-            if isinstance(self.p.reproduction.genome_indexer, itertools.count):
-                # We need to guess current ID. DefaultReproduction doesn't expose it easily unless we iterate?
-                # Actually, max(genome keys) + 1 is safe.
-                next_id = 0
-                if self.p.population:
-                    next_id = max(self.p.population.keys()) + 1
-                self.p.reproduction.genome_indexer = PicklableCount(next_id)
+        # FIX: itertools.count cannot be pickled. Replace with custom one.
+        # Check both population.reproduction and config.genome_config
+        repro = self.p.reproduction
+        if hasattr(repro, 'genome_indexer'):
+            next_id = 0
+            if self.p.population:
+                next_id = max(self.p.population.keys()) + 1
+            repro.genome_indexer = PicklableCount(next_id)
+
+        # FIX: The node indexer must be synchronized across the entire population's genome history
+        g_config = self.config.genome_config
+        if hasattr(g_config, 'node_indexer'):
+            max_node_id = -1
+            for g in self.p.population.values():
+                if g.nodes:
+                    max_node_id = max(max_node_id, max(g.nodes.keys()))
+            
+            # Ensure the indexer starts past the highest known node ID
+            g_config.node_indexer = PicklableCount(max_node_id + 1)
 
         # FIX: The node indexer might also be an itertools.count and needs to be synchronized.
         # It's usually found in the genome_config or as part of the reproduction object.
@@ -158,7 +174,10 @@ class ContinuousPopulation:
                 if hasattr(self.p.reproduction, 'innovation_tracker'):
                     self.config.genome_config.innovation_tracker = self.p.reproduction.innovation_tracker
             
-            return self.config.genome_type(self.p.reproduction.ancestry.next())
+            gid = self.p.reproduction.ancestry.next()
+            child = self.config.genome_type(gid)
+            child.configure_new(self.config.genome_config)
+            return child
         
         # Tournament Selection - Favor active/fit parents
         parent1 = self._tournament(valid_genomes)
@@ -182,6 +201,12 @@ class ContinuousPopulation:
                  self.p.reproduction.innovation_tracker = self.config.genome_config.innovation_tracker
 
         child.configure_crossover(parent1, parent2, self.config.genome_config)
+        
+        # CRITICAL SAFETY: Ensure node_indexer is ahead of any node IDs inherited from parents
+        for node_id in child.nodes.keys():
+            while node_id >= self.config.genome_config.node_indexer.get_current():
+                next(self.config.genome_config.node_indexer)
+        
         child.mutate(self.config.genome_config)
         return child
 
