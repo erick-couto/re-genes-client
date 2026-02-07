@@ -349,19 +349,25 @@ class NeatAmeba:
                         print(f"⚠️ [G{self.genome_id}] Error: {e}")
                         break
                         
-                # Fitness V4: Nomad Forager
-                # 1. Main Goal: Eat food pieces
-                # 2. Strong Filter: Exploration (Unique Cells)
-                # 3. ANTI-STAGNANCY: Max Displacement from Start
+                # Fitness V5: The IQ Test
+                # 1. Scaled Foraging: Eating only pays off if you MOVED.
+                # 2. Movement Requirement: dist_traveled is a multiplier for food.
+                # 3. Exploration is base fitness.
                 
                 dist_traveled = math.hypot(self.current_pos[0] - self.start_pos[0], 
                                            self.current_pos[1] - self.start_pos[1])
                 
-                eating_score = self.food_eaten_count * 500.0   
-                exploration_score = len(self.visited_cells) * 20.0 
-                nomad_score = dist_traveled * 50.0 # Reward moving far away from birth spot
+                # Active foraging: food_count * log(distance + 1)
+                foraging_score = self.food_eaten_count * 1000.0 * (1.0 + math.log1p(dist_traveled))
                 
-                final_fitness = eating_score + exploration_score + nomad_score
+                # Pure exploration bonus
+                exploration_score = len(self.visited_cells) * 10.0 
+                
+                # Survival penalty if you didn't move
+                if dist_traveled < 2.0 and tick_count > 50:
+                    final_fitness = 0.1 # "Lazy" genomes are discarded
+                else:
+                    final_fitness = foraging_score + exploration_score
                 
                 # Log performance
                 self._save_to_performance_log(final_fitness, tick_count, self.food_eaten_count)

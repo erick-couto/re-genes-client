@@ -1,27 +1,27 @@
-Best Genome ID: 196 (Fitness: 125256.60509251987)
+Best Genome ID: 70 (Fitness: 34120.46505340852)
 
 Scenario: Empty (Full Energy)
   Inputs: 75 values
-  Output: ['0.00', '1.00', '-1.00', '1.00', '1.00']
-  Action: DOWN
+  Output: ['0.97', '-1.00', '-0.45', '0.97', '0.89']
+  Action: RIGHT
 
 Scenario: Wall UP
   Inputs: 75 values
-  Output: ['0.00', '1.00', '-1.00', '1.00', '-1.00']
-  Action: RIGHT
+  Output: ['-1.00', '-1.00', '0.99', '1.00', '1.00']
+  Action: STAY
 
 Scenario: Comida UP (Close)
   Inputs: 75 values
-  Output: ['0.00', '1.00', '-1.00', '1.00', '1.00']
-  Action: DOWN
+  Output: ['-1.00', '-1.00', '-1.00', '1.00', '1.00']
+  Action: STAY
 
 Scenario: Comida RIGHT (Far)
   Inputs: 75 values
-  Output: ['0.00', '1.00', '0.79', '-1.00', '-1.00']
-  Action: DOWN
+  Output: ['-0.98', '-1.00', '-1.00', '1.00', '-0.85']
+  Action: RIGHT
 
 Scenario: Comida LEFT (Far)
   Inputs: 75 values
-  Output: ['0.00', '1.00', '-0.92', '0.99', '-1.00']
-  Action: DOWN
+  Output: ['1.00', '-1.00', '1.00', '-1.00', '1.00']
+  Action: STAY
 
