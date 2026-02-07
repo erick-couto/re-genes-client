@@ -207,7 +207,7 @@ class NeatAmeba:
         self.digestion_rate = 1.0 # Default fallback
         
     async def run(self):
-        global TOTAL_ACTIONS
+        global TOTAL_ACTIONS, SESSION_TOTAL
         try:
             async with websockets.connect(SERVER_URL) as websocket:
                 # Handshake
