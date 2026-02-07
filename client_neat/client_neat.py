@@ -186,6 +186,7 @@ class ContinuousPopulation:
 # Global Stats
 ACTION_STATS = {"UP":0, "DOWN":0, "LEFT":0, "RIGHT":0, "STAY":0}
 TOTAL_ACTIONS = 0
+SESSION_TOTAL = 0
 
 class NeatAmeba:
     def __init__(self, genome, config, genome_id, population_manager):
@@ -264,6 +265,7 @@ class NeatAmeba:
                             # Stats Update
                             ACTION_STATS[act_label] += 1
                             TOTAL_ACTIONS += 1
+                            SESSION_TOTAL += 1
                             
                             await websocket.send(json.dumps({
                                 "action": cmd,
@@ -381,16 +383,22 @@ async def run_simulation(target_count):
 
     # Stats Reporter Loop
     async def stats_reporter():
+        global TOTAL_ACTIONS, ACTION_STATS
         while True:
             await asyncio.sleep(10)
             if TOTAL_ACTIONS > 0:
-                print("\n📊 [STATS] Action Distribution (Last 10s):")
+                print(f"\n📊 [STATS] Windowed Distribution (Last 10s):")
                 total = TOTAL_ACTIONS
-                for k, v in ACTION_STATS.items():
+                for k in ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]:
+                    v = ACTION_STATS[k]
                     pct = (v / total) * 100
                     bar = "█" * int(pct/5)
                     print(f"   {k:5}: {pct:5.1f}% {bar}")
-                print(f"   Total Actions: {total}\n")
+                print(f"   Window Actions: {total} | Session Total: {SESSION_TOTAL}\n")
+                
+                # Reset Window Stats
+                TOTAL_ACTIONS = 0
+                for k in ACTION_STATS: ACTION_STATS[k] = 0
             
     asyncio.create_task(auto_saver())
     asyncio.create_task(stats_reporter())
