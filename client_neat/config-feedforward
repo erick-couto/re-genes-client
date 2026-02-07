@@ -15,7 +15,7 @@ activation_options      = tanh sigmoid relu
 # Structural mutation options
 single_structural_mutation = False
 structural_mutation_surer  = default
-initial_connection         = full
+initial_connection         = full_nodirect
 
 # Node aggregation options
 aggregation_default     = sum
