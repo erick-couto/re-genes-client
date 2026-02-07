@@ -278,6 +278,8 @@ class NeatAmeba:
                             if delta > 0:
                                 self.energy_gained += delta
                                 self.food_eaten_count += 1
+                                if self.food_eaten_count % 5 == 1:
+                                    print(f"🍏 [G{self.genome_id}] Ate food! Total: {self.food_eaten_count} | Energy: {current_energy:.1f}")
                             self.last_energy = current_energy
                             
                             # Track exploration
@@ -331,17 +333,16 @@ class NeatAmeba:
                         print(f"⚠️ [G{self.genome_id}] Error: {e}")
                         break
                         
-                # End of Life
-                # Fitness strategy:
-                # 1. Heavily Reward Eating (Energy Gained)
-                # 2. Reward Exploration (Unique Cells)
-                # 3. Lightly Reward Survival
+                # Fitness V3: Hunter Logic
+                # 1. Main Goal: Eat pieces of food (Count > Calories)
+                # 2. Secondary: Explore the map
+                # 3. Tertiary: Energy Gain (Tie-breaker)
                 
-                eating_score = self.energy_gained * 50.0  # Increased reward for food
-                exploration_score = len(self.visited_cells) * 2.0  # Reward moving to new places
-                survival_score = tick_count * 0.05
+                eating_score = self.food_eaten_count * 1000.0   # 1 meal = 1000 pts
+                exploration_score = len(self.visited_cells) * 10.0 # 100 squares = 1000 pts
+                energy_bonus = self.energy_gained * 1.0        # Bonus for efficiency
                 
-                final_fitness = eating_score + exploration_score + survival_score
+                final_fitness = eating_score + exploration_score + energy_bonus
                 
                 # Log performance
                 self._save_to_performance_log(final_fitness, tick_count, self.food_eaten_count)
