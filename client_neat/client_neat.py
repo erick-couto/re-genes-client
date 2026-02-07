@@ -73,6 +73,20 @@ class ContinuousPopulation:
                 if self.p.population:
                     next_id = max(self.p.population.keys()) + 1
                 self.p.reproduction.genome_indexer = PicklableCount(next_id)
+
+        # FIX: The node indexer might also be an itertools.count and needs to be synchronized.
+        # It's usually found in the genome_config or as part of the reproduction object.
+        if hasattr(self.config.genome_config, 'node_indexer'):
+            if isinstance(self.config.genome_config.node_indexer, itertools.count):
+                # Find the maximum node ID currently in use across the entire population
+                max_node_id = -1
+                for g in self.p.population.values():
+                    if g.nodes:
+                        max_node_id = max(max_node_id, max(g.nodes.keys()))
+                
+                # Input nodes have negative IDs in neat-python, we only care about new node IDs (which are positive)
+                # but max() will handle it.
+                self.config.genome_config.node_indexer = PicklableCount(max_node_id + 1)
             
         # We need to manually handle speciation and reproduction
         # Ensure initial speciation
