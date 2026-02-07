@@ -389,43 +389,40 @@ class NeatAmeba:
 
     def process_inputs(self, vision, energy, stomach):
         """
-        New Topology: 75 Inputs (5x5 Vision)
+        New Topology: 78 Inputs (5x5 Vision + Status)
         I0: Bias
         I1: Energy (norm)
         I2: Stomach (norm)
-        I3-I26: Walls (24 Neighbors)
-        I27-I50: Scent (24 Neighbors)
-        I51-I74: Enemies (24 Neighbors)
+        I3-I27: Walls (25 Cells)
+        I28-I52: Scent (25 Cells)
+        I53-I77: Enemies (25 Cells)
         """
         if not vision or len(vision[0]) < 9: 
-            return [0.0] * 75
+            return [0.0] * 78
         
         # Center is at 4,4 (Radius 4 in 9x9 grid)
         cx, cy = 4, 4
         
-        # 5x5 Grid Neighbors (excluding center 4,4)
+        # 5x5 Grid (including center 4,4)
         inputs = [1.0] # Bias
         inputs.append(min(energy, self.stomach_size) / self.stomach_size)
         inputs.append(min(stomach, self.stomach_size) / self.stomach_size)
         
-        # We collect neighbors in a range of -2 to +2
+        # We collect all 25 cells in range of -2 to +2
         for dy in range(-2, 3):
             for dx in range(-2, 3):
-                if dx == 0 and dy == 0: continue # Skip center
                 y, x = cy + dy, cx + dx
                 # Wall
                 inputs.append(1.0 if vision[0][y][x] > 0 else 0.0)
         
         for dy in range(-2, 3):
             for dx in range(-2, 3):
-                if dx == 0 and dy == 0: continue
                 y, x = cy + dy, cx + dx
                 # Scent
                 inputs.append(vision[1][y][x])
                 
         for dy in range(-2, 3):
             for dx in range(-2, 3):
-                if dx == 0 and dy == 0: continue
                 y, x = cy + dy, cx + dx
                 # Enemies
                 inputs.append(vision[2][y][x])
