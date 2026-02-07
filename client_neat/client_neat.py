@@ -160,9 +160,9 @@ class ContinuousPopulation:
 
     def save_checkpoint(self):
         self.p.species.speciate(self.config, self.p.population, self.p.generation)
-        filename = f"{CHECKPOINT_PREFIX}auto"
+        filename = os.path.join(os.path.dirname(__file__), f"{CHECKPOINT_PREFIX}auto")
         # print(f"💾 Saving checkpoint to {filename}...")
-        with gzip.open(filename, 'w', compresslevel=5) as f:
+        with gzip.open(filename, 'wb', compresslevel=5) as f:
             pickle.dump(self.p, f)
 
     def _breed_child(self):
@@ -407,16 +407,16 @@ class NeatAmeba:
         return inputs
 
     def _save_to_performance_log(self, fitness, ticks, food):
-        file = "neat_performance.csv"
+        file = os.path.join(os.path.dirname(__file__), "neat_performance.csv")
         exists = os.path.exists(file)
-        with open(file, "a") as f:
+        with open(file, "a", encoding='utf-8') as f:
             if not exists:
                 f.write("id,fitness,ticks,food_eaten\n")
             f.write(f"{self.genome_id},{fitness:.2f},{ticks},{food}\n")
 
     def _update_hall_of_fame(self, fitness, ticks):
-        file = "NEAT_HALL_OF_FAME.md"
-        with open(file, "a") as f:
+        file = os.path.join(os.path.dirname(__file__), "NEAT_HALL_OF_FAME.md")
+        with open(file, "a", encoding='utf-8') as f:
             f.write(f"| G{self.genome_id} | {fitness:.2f} | {ticks} | {self.food_eaten_count} |\n")
 
 async def run_simulation(target_count):
