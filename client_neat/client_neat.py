@@ -240,6 +240,8 @@ class NeatAmeba:
         self.max_ticks = 2000 
         self.energy_gained = 0
         self.last_energy = 100
+        self.visited_cells = set()
+        self.food_eaten_count = 0
         
         # Bio-Realism: Dynamic normalization based on actual genome stats
         self.stomach_size = 200.0 # Default fallback
@@ -275,7 +277,13 @@ class NeatAmeba:
                             delta = current_energy - self.last_energy
                             if delta > 0:
                                 self.energy_gained += delta
+                                self.food_eaten_count += 1
                             self.last_energy = current_energy
+                            
+                            # Track exploration
+                            pos = (data.get('x'), data.get('y'))
+                            if pos[0] is not None:
+                                self.visited_cells.add(pos)
                             continue
     
                         if data['type'] == 'TICK':
@@ -326,15 +334,22 @@ class NeatAmeba:
                 # End of Life
                 # Fitness strategy:
                 # 1. Heavily Reward Eating (Energy Gained)
-                # 2. Lightly Reward Survival (Tick Count) but capped or scaled down
-                # If they just stay still, they get ~200 ticks. If they eat 1 food (10 energy), they should beat that.
+                # 2. Reward Exploration (Unique Cells)
+                # 3. Lightly Reward Survival
                 
-                eating_score = self.energy_gained * 20.0 # 1 Food = 200 points
-                survival_score = tick_count * 0.1       # 2000 ticks = 200 points
+                eating_score = self.energy_gained * 50.0  # Increased reward for food
+                exploration_score = len(self.visited_cells) * 2.0  # Reward moving to new places
+                survival_score = tick_count * 0.05
                 
-                final_fitness = eating_score + survival_score
+                final_fitness = eating_score + exploration_score + survival_score
                 
-                # print(f"💀 [G{self.genome_id}] Died. Fitness: {final_fitness:.1f} (Eat: {self.energy_gained})")
+                # Log performance
+                self._save_to_performance_log(final_fitness, tick_count, self.food_eaten_count)
+                
+                # Update hall of fame if exceptional
+                if final_fitness > 1000:
+                    self._update_hall_of_fame(final_fitness, tick_count)
+
                 self.manager.report_death(self.genome_id, final_fitness)
 
         except Exception as e:
@@ -348,60 +363,61 @@ class NeatAmeba:
 
     def process_inputs(self, vision, energy, stomach):
         """
-        New Topology: 27 Inputs
+        New Topology: 75 Inputs (5x5 Vision)
         I0: Bias
         I1: Energy (norm)
         I2: Stomach (norm)
-        I3-I10: Walls (8 Neighbors)
-        I11-I18: Food (8 Neighbors - Gradients)
-        I19-I26: Enemies (8 Neighbors - Size Gene)
+        I3-I26: Walls (24 Neighbors)
+        I27-I50: Scent (24 Neighbors)
+        I51-I74: Enemies (24 Neighbors)
         """
         if not vision or len(vision[0]) < 9: 
-            return [0.0] * 27
+            return [0.0] * 75
         
-        # Center is at 4,4 (Radius 4)
+        # Center is at 4,4 (Radius 4 in 9x9 grid)
         cx, cy = 4, 4
         
-        # Directions for 8 neighbors (Moore): N, S, W, E, NW, NE, SW, SE
-        # Note: Array is [y][x]. 
-        # Up (N) is y-1. Down (S) is y+1.
-        neighbors = [
-            (cy-1, cx),   # N
-            (cy+1, cx),   # S
-            (cy, cx-1),   # W
-            (cy, cx+1),   # E
-            (cy-1, cx-1), # NW
-            (cy-1, cx+1), # NE
-            (cy+1, cx-1), # SW
-            (cy+1, cx+1)  # SE
-        ]
-        
-        # Extract Layers
-        layer_walls = vision[0]
-        layer_scent = vision[1]
-        layer_enemy = vision[2]
-        
-        inputs = []
-        
-        # 1. Body Stats
-        inputs.append(1.0) # Bias
-        # Bio-Realism V2: Dynamic Normalization
+        # 5x5 Grid Neighbors (excluding center 4,4)
+        inputs = [1.0] # Bias
         inputs.append(min(energy, self.stomach_size) / self.stomach_size)
         inputs.append(min(stomach, self.stomach_size) / self.stomach_size)
         
-        # 2. Walls (8)
-        for y, x in neighbors:
-            inputs.append(1.0 if layer_walls[y][x] > 0 else 0.0)
-            
-        # 3. Food (8) - Direct Decimal Gradient
-        for y, x in neighbors:
-            inputs.append(layer_scent[y][x])
-            
-        # 4. Enemies (8) - Size Gene
-        for y, x in neighbors:
-            inputs.append(layer_enemy[y][x])
+        # We collect neighbors in a range of -2 to +2
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                if dx == 0 and dy == 0: continue # Skip center
+                y, x = cy + dy, cx + dx
+                # Wall
+                inputs.append(1.0 if vision[0][y][x] > 0 else 0.0)
+        
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                if dx == 0 and dy == 0: continue
+                y, x = cy + dy, cx + dx
+                # Scent
+                inputs.append(vision[1][y][x])
+                
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                if dx == 0 and dy == 0: continue
+                y, x = cy + dy, cx + dx
+                # Enemies
+                inputs.append(vision[2][y][x])
             
         return inputs
+
+    def _save_to_performance_log(self, fitness, ticks, food):
+        file = "neat_performance.csv"
+        exists = os.path.exists(file)
+        with open(file, "a") as f:
+            if not exists:
+                f.write("id,fitness,ticks,food_eaten\n")
+            f.write(f"{self.genome_id},{fitness:.2f},{ticks},{food}\n")
+
+    def _update_hall_of_fame(self, fitness, ticks):
+        file = "NEAT_HALL_OF_FAME.md"
+        with open(file, "a") as f:
+            f.write(f"| G{self.genome_id} | {fitness:.2f} | {ticks} | {self.food_eaten_count} |\n")
 
 async def run_simulation(target_count):
     local_dir = os.path.dirname(__file__)
