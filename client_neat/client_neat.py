@@ -9,7 +9,7 @@ import sys
 import random
 from neat.math_util import mean
 
-# --- CONFIGURAÇÃO ---
+# --- CONFIGURATION ---
 SERVER_URL = "wss://re-genes.is/ws/join?species=NEAT_Evo"
 CONFIG_FILE = "config-feedforward"
 CHECKPOINT_PREFIX = "neat-checkpoint-continuous-"
