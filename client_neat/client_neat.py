@@ -110,6 +110,7 @@ class ContinuousPopulation:
         
         # Keep track of active genomes (being simulated) to avoid simulating same genome twice
         self.active_genome_ids = set()
+        self.deaths_since_gen_inc = 0
 
     def get_genome(self):
         """
@@ -157,6 +158,15 @@ class ContinuousPopulation:
         
         if genome_id in self.active_genome_ids:
             self.active_genome_ids.remove(genome_id)
+            
+        # Increment generation count every N deaths to trigger stagnation logic
+        self.deaths_since_gen_inc += 1
+        if self.deaths_since_gen_inc >= self.config.pop_size:
+            self.p.generation += 1
+            self.deaths_since_gen_inc = 0
+            # Speciate occasionally
+            self.p.species.speciate(self.config, self.p.population, self.p.generation)
+            print(f"📈 [GEN] Incrementing generation to {self.p.generation} | Pop: {len(self.p.population)}")
 
     def save_checkpoint(self):
         self.p.species.speciate(self.config, self.p.population, self.p.generation)
@@ -242,6 +252,8 @@ class NeatAmeba:
         self.last_energy = 100
         self.visited_cells = set()
         self.food_eaten_count = 0
+        self.start_pos = (0, 0)
+        self.current_pos = (0, 0)
         
         # Bio-Realism: Dynamic normalization based on actual genome stats
         self.stomach_size = 200.0 # Default fallback
@@ -262,6 +274,9 @@ class NeatAmeba:
                 self.digestion_rate = stats.get("digestion_rate", 1.0)
                 
                 # print(f"🧬 [G{self.genome_id}] Spawned as {self.my_id} | Cap: {self.stomach_size}")
+                
+                self.start_pos = (welcome_data.get('x', 0), welcome_data.get('y', 0))
+                self.current_pos = self.start_pos
                 
                 tick_count = 0
                 while self.alive and tick_count < self.max_ticks:
@@ -286,6 +301,7 @@ class NeatAmeba:
                             pos = (data.get('x'), data.get('y'))
                             if pos[0] is not None:
                                 self.visited_cells.add(pos)
+                                self.current_pos = pos
                             continue
     
                         if data['type'] == 'TICK':
@@ -333,16 +349,19 @@ class NeatAmeba:
                         print(f"⚠️ [G{self.genome_id}] Error: {e}")
                         break
                         
-                # Fitness V3: Hunter Logic
-                # 1. Main Goal: Eat pieces of food (Count > Calories)
-                # 2. Secondary: Explore the map
-                # 3. Tertiary: Energy Gain (Tie-breaker)
+                # Fitness V4: Nomad Forager
+                # 1. Main Goal: Eat food pieces
+                # 2. Strong Filter: Exploration (Unique Cells)
+                # 3. ANTI-STAGNANCY: Max Displacement from Start
                 
-                eating_score = self.food_eaten_count * 1000.0   # 1 meal = 1000 pts
-                exploration_score = len(self.visited_cells) * 10.0 # 100 squares = 1000 pts
-                energy_bonus = self.energy_gained * 1.0        # Bonus for efficiency
+                dist_traveled = math.hypot(self.current_pos[0] - self.start_pos[0], 
+                                           self.current_pos[1] - self.start_pos[1])
                 
-                final_fitness = eating_score + exploration_score + energy_bonus
+                eating_score = self.food_eaten_count * 500.0   
+                exploration_score = len(self.visited_cells) * 20.0 
+                nomad_score = dist_traveled * 50.0 # Reward moving far away from birth spot
+                
+                final_fitness = eating_score + exploration_score + nomad_score
                 
                 # Log performance
                 self._save_to_performance_log(final_fitness, tick_count, self.food_eaten_count)
