@@ -13,17 +13,17 @@ Q_TABLE_BASE_NAME = "qtable_memoriam"
 DEFAULT_BATCH_SIZE = 1  # Standard Default if no args
 TICKS_PER_GEN = 2000 # Tempo máximo de vida por geração
 
-# Hiperparâmetros
+# Hyperparameters
 ALPHA = 0.1
 GAMMA = 0.9
 EPSILON_START = 1.0
-EPSILON_MIN = 0.05
-EPSILON_DECAY = 0.90 # Decaimento por Geração (10% mais confiante a cada gen)
+EPSILON_MIN = 0.01  # Lower floor for better long-term precision
+EPSILON_DECAY = 0.99 # Smoother decay per generation (was 0.90)
 
 class MemoriamBrain:
     """
-    Representa o cérebro (Q-Table) de uma ESPÉCIE/FENÓTIPO específico.
-    Várias amebas podem compartilhar esta instância se forem da mesma espécie.
+    Represents the brain (Q-Table) of a specific SPECIES/PHENOTYPE.
+    Multiple amebas can share this instance if they are of the same species.
     """
     def __init__(self, species_name):
         self.species_name = species_name
@@ -39,12 +39,12 @@ class MemoriamBrain:
                     data = json.load(f)
                     self.q_table = data.get("q_table", {})
                     self.epsilon = data.get("epsilon", EPSILON_START)
-                print(f"📖 [{self.species_name}] Memória carregada: {len(self.q_table)} estados. Eps: {self.epsilon:.2f}")
+                print(f"📖 [{self.species_name}] Memory loaded: {len(self.q_table)} states. Eps: {self.epsilon:.2f}")
             except Exception as e:
-                print(f"⚠️ Erro ao carregar {self.filename}: {e}")
+                print(f"⚠️ Error loading {self.filename}: {e}")
                 self.q_table = {}
         else:
-            print(f"✨ [{self.species_name}] Nova espécie descoberta. Cérebro vazio.")
+            print(f"✨ [{self.species_name}] New species discovered. Empty brain.")
 
     def save(self):
         try:
@@ -64,9 +64,9 @@ class MemoriamBrain:
             if os.path.exists(self.filename):
                 os.remove(self.filename)
             os.rename(temp_file, self.filename)
-            print(f"💾 [{self.species_name}] Salvo. {len(self.q_table)} estados. Eps: {self.epsilon:.2f}")
+            print(f"💾 [{self.species_name}] Saved. {len(self.q_table)} states. Eps: {self.epsilon:.2f}")
         except Exception as e:
-            print(f"❌ Erro ao salvar {self.filename}: {e}")
+            print(f"❌ Error saving {self.filename}: {e}")
 
     def get_action(self, state_key):
         actions = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
@@ -100,12 +100,12 @@ class MemoriamBrain:
 
 
 class BrainManager:
-    """Gerencia Múltiplos Cérebros baseados no Fenótipo"""
+    """Manages multiple brains based on Phenotype"""
     def __init__(self):
         self.brains = {} # Dict[species_name, MemoriamBrain]
 
     def get_brain(self, species_desc):
-        # Sanitiza nome (Ex: 'Gigante Lento (Filha de..)' -> 'Gigante_Lento')
+        # Sanitize name (Ex: 'Giant Slow (Offspring of..)' -> 'Giant_Slow')
         clean_name = species_desc.split("(")[0].strip().replace(" ", "_")
         if not clean_name: clean_name = "Unknown"
         
@@ -130,7 +130,7 @@ class AgentAmeba:
         self.alive = True
     
     def process_vision(self, vision, energy):
-        """Transforma visão em Estado (String Key)"""
+        """Transforms vision into State (String Key)"""
         if not vision: return "BLIND"
         
         # Center Crop 3x3 (Channel 0=Wall, 1=Scent)
@@ -166,7 +166,7 @@ class AgentAmeba:
                 
                 # 2. Get Shared Brain
                 self.brain = self.manager.get_brain(species)
-                print(f"✨ {server_id} conectada. Espécie: {self.brain.species_name}")
+                print(f"✨ {server_id} connected. Species: {self.brain.species_name}")
 
                 # 3. Game Loop
                 tick_count = 0
@@ -219,14 +219,14 @@ class AgentAmeba:
                         tick_count += 1
                         
         except Exception as e:
-            print(f"⚠️ Erro Ameba: {e}")
+            print(f"⚠️ Agent Error: {e}")
 
 # --- CONTROLE DA GERAÇÃO ---
 async def periodic_save(manager):
-    """Salva memória a cada 30 segundos sem parar a simulação"""
+    """Saves memory every 30 seconds without stopping simulation"""
     while True:
         await asyncio.sleep(30)
-        print("\n💾 Auto-Save periódico...")
+        print("\n💾 Periodic Auto-Save...")
         manager.save_all()
         
         # Decay Epsilon Periodically
@@ -242,9 +242,9 @@ async def main():
         try:
             target_population = int(sys.argv[1])
         except ValueError:
-            print(f"⚠️ Argumento inválido: {sys.argv[1]}. Usando Default: {target_population}")
+            print(f"⚠️ Invalid argument: {sys.argv[1]}. Using Default: {target_population}")
             
-    print(f"🚀 Iniciando Simulador Memoriam | Alvo: {target_population} Amebas Simultâneas")
+    print(f"🚀 Starting Memoriam Simulator | Target: {target_population} Simultaneous Amebas")
 
     # Start Auto-Saver
     asyncio.create_task(periodic_save(manager))
