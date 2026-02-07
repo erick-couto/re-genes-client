@@ -200,7 +200,10 @@ class NeatAmeba:
         self.max_ticks = 2000 
         self.energy_gained = 0
         self.last_energy = 100
-        # self.start_pos = None # Could track displacement
+        
+        # Bio-Realism: Dynamic normalization based on actual genome stats
+        self.stomach_size = 200.0 # Default fallback
+        self.digestion_rate = 1.0 # Default fallback
         
     async def run(self):
         global TOTAL_ACTIONS
@@ -210,7 +213,13 @@ class NeatAmeba:
                 welcome = await websocket.recv()
                 welcome_data = json.loads(welcome)
                 self.my_id = welcome_data.get("id")
-                # print(f"🧬 [G{self.genome_id}] Spawned as {self.my_id}")
+                
+                # Capture Genome Stats for Dynamic Normalization
+                stats = welcome_data.get("stats", {})
+                self.stomach_size = stats.get("stomach_size", 200.0)
+                self.digestion_rate = stats.get("digestion_rate", 1.0)
+                
+                # print(f"🧬 [G{self.genome_id}] Spawned as {self.my_id} | Cap: {self.stomach_size}")
                 
                 tick_count = 0
                 while self.alive and tick_count < self.max_ticks:
@@ -335,8 +344,9 @@ class NeatAmeba:
         
         # 1. Body Stats
         inputs.append(1.0) # Bias
-        inputs.append(min(energy, 200) / 200.0)
-        inputs.append(min(stomach, 50) / 50.0)
+        # Bio-Realism V2: Dynamic Normalization
+        inputs.append(min(energy, self.stomach_size) / self.stomach_size)
+        inputs.append(min(stomach, self.stomach_size) / self.stomach_size)
         
         # 2. Walls (8)
         for y, x in neighbors:
