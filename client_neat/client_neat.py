@@ -17,13 +17,27 @@ SERVER_URL = "wss://re-genes.is/ws/join?species=NEAT_Evo"
 def _make_ssl_context():
     """Contexto TLS tolerante ao MITM local do Avast (Web/Mail Shield).
 
-    O Python 3.13+ liga VERIFY_X509_STRICT por padrao; o root que o Avast injeta
-    na cadeia tem 'Basic Constraints' nao-critical, reprovado pelo modo estrito
-    (erro enganoso 'certificate has expired'/'Basic Constraints not marked critical').
-    Removemos SO essa checagem estrutural extra — a cadeia continua sendo validada
-    contra o trust store do SO e o hostname e verificado. Em maquinas sem Avast e
-    inofensivo (certificados reais passam no modo estrito de qualquer forma).
+    O Avast intercepta o TLS e reassina o cert com um root proprio. Isso gera 2
+    problemas no Python 3.13+ (OpenSSL 3.x):
+      1) VERIFY_X509_STRICT (ligado por padrao) reprova o root do Avast, cujo
+         'Basic Constraints' nao e critical. -> removemos so essa flag.
+      2) O Avast rotaciona certs de interceptacao de validade curta; durante a
+         troca as vezes serve um vencido -> erro 'certificate has expired', que
+         NENHUM ajuste de flag resolve (a cadeia esta genuinamente expirada).
+
+    Correcao permanente e recomendada: excluir 're-genes.is' do scan HTTPS do
+    Avast (Web Shield) — ai o Python recebe o cert real e o modo estrito passa.
+
+    Escape rapido (opt-in) para quando o Avast surtar: rode com a env var
+    REGENES_INSECURE_TLS=1, que DESLIGA a verificacao de certificado. Use so
+    porque o trafego aqui e telemetria de jogo, sem segredo, para o seu servidor.
     """
+    if os.getenv("REGENES_INSECURE_TLS") == "1":
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        print("⚠️  REGENES_INSECURE_TLS=1 -> verificacao de certificado DESLIGADA (Avast bypass)")
+        return ctx
     ctx = ssl.create_default_context()
     ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
     return ctx

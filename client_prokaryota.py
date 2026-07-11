@@ -1,6 +1,7 @@
 import asyncio
 import websockets
 import json
+import os
 import random
 import ssl
 import time
@@ -10,8 +11,17 @@ SERVER_URL = "wss://re-genes.is/ws/join?species=Prokaryota"
 
 
 def _make_ssl_context():
-    """Tolera o MITM local do Avast: remove SO o VERIFY_X509_STRICT (o root do
-    Avast tem Basic Constraints nao-critical). Cadeia + hostname seguem validados."""
+    """Tolera o MITM local do Avast. Padrao: remove so o VERIFY_X509_STRICT (root
+    do Avast tem Basic Constraints nao-critical); cadeia + hostname seguem validados.
+    Se o Avast servir cert vencido ('certificate has expired'), rode com a env var
+    REGENES_INSECURE_TLS=1 para desligar a verificacao (telemetria de jogo, sem segredo).
+    Fix permanente: excluir 're-genes.is' do scan HTTPS do Avast (Web Shield)."""
+    if os.getenv("REGENES_INSECURE_TLS") == "1":
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        print("⚠️  REGENES_INSECURE_TLS=1 -> verificacao de certificado DESLIGADA (Avast bypass)")
+        return ctx
     ctx = ssl.create_default_context()
     ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
     return ctx
