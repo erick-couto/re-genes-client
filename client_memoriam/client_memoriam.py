@@ -12,19 +12,28 @@ SERVER_URL = "wss://re-genes.is/ws/join?species=Memoriam"
 
 
 def _make_ssl_context():
-    """Tolera o MITM local do Avast. Padrao: remove so o VERIFY_X509_STRICT (root
-    do Avast tem Basic Constraints nao-critical); cadeia + hostname seguem validados.
-    Se o Avast servir cert vencido ('certificate has expired'), rode com a env var
-    REGENES_INSECURE_TLS=1 para desligar a verificacao (telemetria de jogo, sem segredo).
-    Fix permanente: excluir 're-genes.is' do scan HTTPS do Avast (Web Shield)."""
+    """TLS robusto (ver client_neat para detalhes). Usa o bundle do certifi porque o
+    Windows store desta maquina tem um root vencido do Let's Encrypt (DST X3) que faz
+    o OpenSSL falhar com 'certificate has expired'. Remove VERIFY_X509_STRICT (Avast).
+    Env vars: REGENES_INSECURE_TLS=1 (desliga verificacao), REGENES_CA_EXTRA=ca.pem."""
     if os.getenv("REGENES_INSECURE_TLS") == "1":
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        print("⚠️  REGENES_INSECURE_TLS=1 -> verificacao de certificado DESLIGADA (Avast bypass)")
+        print("⚠️  REGENES_INSECURE_TLS=1 -> verificacao de certificado DESLIGADA")
         return ctx
-    ctx = ssl.create_default_context()
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = ssl.create_default_context()
     ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    extra = os.getenv("REGENES_CA_EXTRA")
+    if extra and os.path.exists(extra):
+        try:
+            ctx.load_verify_locations(extra)
+        except Exception:
+            pass
     return ctx
 
 

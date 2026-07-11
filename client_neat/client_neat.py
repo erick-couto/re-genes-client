@@ -15,31 +15,41 @@ SERVER_URL = "wss://re-genes.is/ws/join?species=NEAT_Evo"
 
 
 def _make_ssl_context():
-    """Contexto TLS tolerante ao MITM local do Avast (Web/Mail Shield).
+    """Contexto TLS robusto para conectar em wss://re-genes.is.
 
-    O Avast intercepta o TLS e reassina o cert com um root proprio. Isso gera 2
-    problemas no Python 3.13+ (OpenSSL 3.x):
-      1) VERIFY_X509_STRICT (ligado por padrao) reprova o root do Avast, cujo
-         'Basic Constraints' nao e critical. -> removemos so essa flag.
-      2) O Avast rotaciona certs de interceptacao de validade curta; durante a
-         troca as vezes serve um vencido -> erro 'certificate has expired', que
-         NENHUM ajuste de flag resolve (a cadeia esta genuinamente expirada).
+    Causa raiz do 'certificate has expired': o trust store do WINDOWS desta maquina
+    tem um root vencido do Let's Encrypt (DST Root CA X3, expirou em 2021) e o OpenSSL
+    do Python monta o caminho por ele em vez do ISRG atual. A cadeia do servidor esta
+    valida — o problema e o store local. Solucao: usar o bundle atualizado do certifi
+    em vez do Windows store.
 
-    Correcao permanente e recomendada: excluir 're-genes.is' do scan HTTPS do
-    Avast (Web Shield) — ai o Python recebe o cert real e o modo estrito passa.
+    Tambem removemos VERIFY_X509_STRICT (Python 3.13+ liga por padrao): se o Avast
+    estiver interceptando TLS, o root dele tem 'Basic Constraints' nao-critical e o
+    modo estrito reprova. Root extra (ex.: o do Avast) pode ser injetado via env var
+    REGENES_CA_EXTRA=caminho\\para\\ca.pem.
 
-    Escape rapido (opt-in) para quando o Avast surtar: rode com a env var
-    REGENES_INSECURE_TLS=1, que DESLIGA a verificacao de certificado. Use so
-    porque o trafego aqui e telemetria de jogo, sem segredo, para o seu servidor.
+    Escape opt-in: REGENES_INSECURE_TLS=1 desliga a verificacao (trafego aqui e so
+    telemetria de jogo, sem segredo). Fix permanente ideal: manter o Windows/Root
+    store atualizado (Windows Update) ou excluir o host do scan HTTPS do Avast.
     """
     if os.getenv("REGENES_INSECURE_TLS") == "1":
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        print("⚠️  REGENES_INSECURE_TLS=1 -> verificacao de certificado DESLIGADA (Avast bypass)")
+        print("⚠️  REGENES_INSECURE_TLS=1 -> verificacao de certificado DESLIGADA")
         return ctx
-    ctx = ssl.create_default_context()
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = ssl.create_default_context()
     ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    extra = os.getenv("REGENES_CA_EXTRA")
+    if extra and os.path.exists(extra):
+        try:
+            ctx.load_verify_locations(extra)
+        except Exception:
+            pass
     return ctx
 
 
