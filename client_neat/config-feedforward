@@ -13,9 +13,12 @@ activation_mutate_rate  = 0.1
 activation_options      = tanh sigmoid relu
 
 # Structural mutation options
+# initial_connection: começar MÍNIMO é o princípio do NEAT (complexifica sob demanda).
+# 'full_nodirect' com 79 inputs + 10 hidden nascia com ~840 conexões (redes gigantes e
+# quase aleatórias). 'partial_direct 0.5' conecta ~50% inputs->outputs e cresce a partir daí.
 single_structural_mutation = False
 structural_mutation_surer  = default
-initial_connection         = full_nodirect
+initial_connection         = partial_direct 0.5
 
 # Node aggregation options
 aggregation_default     = sum
@@ -71,8 +74,11 @@ node_add_prob           = 0.2
 node_delete_prob        = 0.2
 
 # Network parameters
-num_hidden              = 10
-num_inputs              = 78
+# num_hidden = 0: deixa o NEAT DESCOBRIR a topologia (add-node mutation) em vez de
+# impor 10 neurônios ocultos de largada. num_inputs fixo em 79 (não mude sem quebrar
+# a leitura de visão do cliente).
+num_hidden              = 0
+num_inputs              = 79
 num_outputs             = 5
 
 [DefaultSpeciesSet]

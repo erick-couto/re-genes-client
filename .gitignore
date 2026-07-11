@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+.DS_Store
+
+# Artefatos de runtime / arquivos de baseline arquivados
+replays/
+*.baseline_*
+data/

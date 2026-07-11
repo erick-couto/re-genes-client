@@ -255,10 +255,31 @@ class NeatAmeba:
         self.start_pos = (0, 0)
         self.current_pos = (0, 0)
         
-        # Bio-Realism: Dynamic normalization based on actual genome stats
-        self.stomach_size = 200.0 # Default fallback
-        self.digestion_rate = 1.0 # Default fallback
+        # Endorphin System (0-100)
+        self.endorphin = 50.0  # Starts neutral
+        self.accumulated_endorphin = 0.0 # For fitness calculation
         
+        # 🎥 Replay History
+        self.history = []
+
+    def _save_replay(self, fitness, ticks):
+        filename = f"replays/replay_G{self.genome_id}_F{int(fitness)}.json.gz"
+        filepath = os.path.join(os.path.dirname(__file__), filename)
+        
+        data = {
+            "genome_id": self.genome_id,
+            "fitness": fitness,
+            "total_ticks": ticks,
+            "history": self.history
+        }
+        
+        try:
+            with gzip.open(filepath, 'wt', encoding='utf-8') as f:
+                json.dump(data, f)
+            print(f"🎬 [REPLAY] Saved {filename} ({len(self.history)} frames)")
+        except Exception as e:
+            print(f"❌ Failed to save replay: {e}")
+
     async def run(self):
         global TOTAL_ACTIONS, SESSION_TOTAL
         try:
@@ -272,8 +293,6 @@ class NeatAmeba:
                 stats = welcome_data.get("stats", {})
                 self.stomach_size = stats.get("stomach_size", 200.0)
                 self.digestion_rate = stats.get("digestion_rate", 1.0)
-                
-                # print(f"🧬 [G{self.genome_id}] Spawned as {self.my_id} | Cap: {self.stomach_size}")
                 
                 self.start_pos = (welcome_data.get('x', 0), welcome_data.get('y', 0))
                 self.current_pos = self.start_pos
@@ -293,21 +312,50 @@ class NeatAmeba:
                             if delta > 0:
                                 self.energy_gained += delta
                                 self.food_eaten_count += 1
+                                # 💊 Endorphin: Eating is joy!
+                                # REHAB: Massive reward to make eating the primary goal
+                                self.endorphin += 100.0
+                                
                                 if self.food_eaten_count % 5 == 1:
-                                    print(f"🍏 [G{self.genome_id}] Ate food! Total: {self.food_eaten_count} | Energy: {current_energy:.1f}")
+                                    print(f"🍏 [G{self.genome_id}] Ate food! Total: {self.food_eaten_count} | Endorphin: {self.endorphin:.1f}")
+                            
                             self.last_energy = current_energy
                             
                             # Track exploration
                             pos = (data.get('x'), data.get('y'))
-                            if pos[0] is not None:
-                                self.visited_cells.add(pos)
+                            if pos[0] is not None and pos != self.current_pos:
+                                # 💊 Endorphin: Movement reward (Make it sustainable!)
+                                # REHAB: Reduced from 0.5 to 0.3 to discourage aimless running
+                                self.endorphin += 0.3
+                                
+                                if pos not in self.visited_cells:
+                                    self.visited_cells.add(pos)
+                                    # 💊 Endorphin: Discovery reward!
+                                    self.endorphin += 5.0
+                                
                                 self.current_pos = pos
+                            
                             continue
     
                         if data['type'] == 'TICK':
                             vision = data.get('vision') 
                             energy = data.get('energy', 0)
                             stomach = data.get('stomach', 0)
+                            
+                            # 💊 Endorphin: Natural Decay (Boredom/Stress)
+                            # Reduced to 0.2 so moving (+0.3) is net positive (+0.1)
+                            self.endorphin -= 0.2
+                            
+                            # 💊 Endorphin: Starvation Stress
+                            # REHAB: Panic if energy drops below 50% (was 20%)
+                            if energy < (self.stomach_size * 0.5):
+                                self.endorphin -= 2.0
+                            
+                            # Clamp Endorphin (0-100)
+                            self.endorphin = max(0.0, min(100.0, self.endorphin))
+                            
+                            # Integrate happiness over time (Area Under Curve)
+                            self.accumulated_endorphin += self.endorphin
                             
                             inputs = self.process_inputs(vision, energy, stomach)
                             outputs = self.net.activate(inputs)
@@ -332,14 +380,27 @@ class NeatAmeba:
                             TOTAL_ACTIONS += 1
                             SESSION_TOTAL += 1
                             
+                            # 🎥 Replay Recording (In-Memory)
+                            # We store what she SAW and what she DID.
+                            step_record = {
+                                "t": tick_count,
+                                "x": self.current_pos[0],
+                                "y": self.current_pos[1],
+                                "e": round(energy, 1),
+                                "h": round(self.endorphin, 1), # Happiness
+                                "a": cmd,
+                                "d": direction,
+                                "v": vision # The subjective reality (3x9x9)
+                            }
+                            self.history.append(step_record)
+                            
                             await websocket.send(json.dumps({
                                 "action": cmd,
                                 "direction": direction
                             }))
-                            
-                            if self.genome_id % 5 == 0 and tick_count % 50 == 0:
-                               # Log occasionally for sample
-                               pass 
+
+                            if self.genome_id % 10 == 0 and tick_count % 20 == 0:
+                               self._log_debug(inputs, outputs, act_label)
                             
                             tick_count += 1
                             
@@ -349,32 +410,36 @@ class NeatAmeba:
                         print(f"⚠️ [G{self.genome_id}] Error: {e}")
                         break
                         
-                # Fitness V5: The IQ Test
-                # 1. Scaled Foraging: Eating only pays off if you MOVED.
-                # 2. Movement Requirement: dist_traveled is a multiplier for food.
-                # 3. Exploration is base fitness.
-                
-                dist_traveled = math.hypot(self.current_pos[0] - self.start_pos[0], 
-                                           self.current_pos[1] - self.start_pos[1])
-                
-                # Active foraging: food_count * log(distance + 1)
-                foraging_score = self.food_eaten_count * 1000.0 * (1.0 + math.log1p(dist_traveled))
-                
-                # Pure exploration bonus
-                exploration_score = len(self.visited_cells) * 10.0 
-                
-                # Survival penalty if you didn't move
-                if dist_traveled < 2.0 and tick_count > 50:
-                    final_fitness = 0.1 # "Lazy" genomes are discarded
-                else:
-                    final_fitness = foraging_score + exploration_score
-                
+                # 🏆 Fitness V7: Survival + Foraging (gradiente forte e selecionável)
+                # A V6 ("felicidade média") era dominada por +0.3/movimento e +5/célula nova,
+                # então vagar sem rumo pontuava quase igual a comer. Resultado: 7616 vidas com
+                # fitness PLANO (~31) e zero aprendizado. Aqui o sinal vem de comer e sobreviver:
+                #   - cada comida ingerida vale MUITO (evento raro e o real objetivo)
+                #   - energia total absorvida dá um sinal denso (recompensa parcial por caçar)
+                #   - sobreviver mais ticks é bônus secundário
+                #   - exploração fica como termo minúsculo, só para bootstrap inicial
+                FOOD_REWARD = 200.0      # por bocado de comida efetivamente comido
+                ENERGY_REWARD = 1.0      # por unidade de energia absorvida
+                SURVIVAL_REWARD = 1.0    # por tick vivo
+                EXPLORE_REWARD = 0.25    # por célula nova visitada (bootstrap)
+
+                final_fitness = (
+                    self.food_eaten_count * FOOD_REWARD
+                    + self.energy_gained * ENERGY_REWARD
+                    + tick_count * SURVIVAL_REWARD
+                    + len(self.visited_cells) * EXPLORE_REWARD
+                )
+
                 # Log performance
                 self._save_to_performance_log(final_fitness, tick_count, self.food_eaten_count)
-                
-                # Update hall of fame if exceptional
-                if final_fitness > 1000:
+
+                # Hall of Fame / Replay: limiares recalibrados para a escala V7.
+                # (comer ~10 alimentos + sobreviver ~500 ticks ≈ 2500+)
+                if final_fitness > 1500:
                     self._update_hall_of_fame(final_fitness, tick_count)
+                if final_fitness > 2500:
+                    # 🎥 Save Replay for Geniuses
+                    self._save_replay(final_fitness, tick_count)
 
                 self.manager.report_death(self.genome_id, final_fitness)
 
@@ -385,20 +450,22 @@ class NeatAmeba:
 
     def _log_debug(self, inputs, outputs, dir):
         def fmt(x): return f"{x:.1f}"
-        print(f"[G{self.genome_id}] E:{fmt(inputs[1])} S:{fmt(inputs[2])} -> {dir}")
+        # Inputs: 0=Bias, 1=Energy, 2=Stomach, 3=Endorphin
+        print(f"[G{self.genome_id}] E:{fmt(inputs[1])} S:{fmt(inputs[2])} ❤️:{fmt(inputs[3])} -> {dir}")
 
     def process_inputs(self, vision, energy, stomach):
         """
-        New Topology: 78 Inputs (5x5 Vision + Status)
+        New Topology: 79 Inputs (5x5 Vision + Status + Endorphin)
         I0: Bias
         I1: Energy (norm)
         I2: Stomach (norm)
-        I3-I27: Walls (25 Cells)
-        I28-I52: Scent (25 Cells)
-        I53-I77: Enemies (25 Cells)
+        I3: Endorphin (norm)
+        I4-I28: Walls (25 Cells)
+        I29-I53: Scent (25 Cells)
+        I54-I78: Enemies (25 Cells)
         """
         if not vision or len(vision[0]) < 9: 
-            return [0.0] * 78
+            return [0.0] * 79
         
         # Center is at 4,4 (Radius 4 in 9x9 grid)
         cx, cy = 4, 4
@@ -407,6 +474,9 @@ class NeatAmeba:
         inputs = [1.0] # Bias
         inputs.append(min(energy, self.stomach_size) / self.stomach_size)
         inputs.append(min(stomach, self.stomach_size) / self.stomach_size)
+        
+        # New Input: Endorphin Level (Normalized 0.0 - 1.0)
+        inputs.append(self.endorphin / 100.0)
         
         # We collect all 25 cells in range of -2 to +2
         for dy in range(-2, 3):
@@ -505,12 +575,17 @@ async def run_simulation(target_count):
                 await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
             else:
                 await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        print("\n🛑 Simulation Cancelled.")
     finally:
-        print("\n💾 Saving checkpoint before exit...")
+        print("\n💾 Saving checkpoint before exit (Finally)...")
         pop.save_checkpoint()
 
 if __name__ == '__main__':
-    target = 1
+    # Default de população simultânea. Neuroevolução precisa de vários indivíduos
+    # vivos ao mesmo tempo (throughput + competição). Rode `python client_neat.py 20`
+    # para escalar; respeite o limite de CPU do servidor (docker: 0.5 CPU).
+    target = 8
     if len(sys.argv) > 1:
         try:
             target = int(sys.argv[1])
@@ -518,6 +593,17 @@ if __name__ == '__main__':
             pass
     
     try:
+        # Windows specifics for better signal handling
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            
         asyncio.run(run_simulation(target))
     except KeyboardInterrupt:
-        print("\n👋 Stopping...")
+        print("\n👋 Stopping (KeyboardInterrupt)...")
+        # Ensure checkpoint is saved even on hard interrupt if `finally` block didn't catch it
+        # Note: In robust systems, we'd rely on the `finally` block in `run_simulation`, 
+        # but asyncio.run can sometimes swallow the context.
+        # However, `pop` is local to `run_simulation`, so we can't access it here easily.
+        # The `finally` block inside `run_simulation` IS the correct place. 
+        # The issue might be that `gzip` flush didn't complete.
+        pass
