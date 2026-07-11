@@ -38,8 +38,8 @@ def _make_ssl_context():
 
 
 SSL_CONTEXT = _make_ssl_context() if SERVER_URL.startswith("wss") else None
-Q_TABLE_BASE_NAME = "qtable_memoriam"
-Q_TABLE_BASE_NAME = "qtable_memoriam"
+Q_TABLE_BASE_NAME = "qtable_memoriam_v2"
+Q_TABLE_BASE_NAME = "qtable_memoriam_v2"
 DEFAULT_BATCH_SIZE = 1  # Standard Default if no args
 TICKS_PER_GEN = 2000 # Tempo máximo de vida por geração
 
@@ -49,6 +49,12 @@ GAMMA = 0.9
 EPSILON_START = 1.0
 EPSILON_MIN = 0.01  # Lower floor for better long-term precision
 EPSILON_DECAY = 0.99 # Smoother decay per generation (was 0.90)
+
+# Ações (ordem = índice do ACTION_SPEC do servidor, protocolo v2).
+# NOTA: o estado do Memoriam (3x3 wall+scent) NÃO enxerga inimigos, então ele ataca
+# "às cegas" — é um baseline tabular; predação de verdade fica com NEAT/ES (que veem
+# inimigo + perigo). Dar-lhe as ações mantém o protocolo compatível.
+ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY", "ATK_UP", "ATK_DOWN", "ATK_LEFT", "ATK_RIGHT"]
 
 class MemoriamBrain:
     """
@@ -99,24 +105,22 @@ class MemoriamBrain:
             print(f"❌ Error saving {self.filename}: {e}")
 
     def get_action(self, state_key):
-        actions = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
-        
         # Epsilon-Greedy
         if random.random() < self.epsilon:
-            return random.choice(actions)
-        
+            return random.choice(ACTIONS)
+
         if state_key not in self.q_table:
-            return random.choice(actions)
-            
+            return random.choice(ACTIONS)
+
         q_values = self.q_table[state_key]
         return max(q_values, key=q_values.get)
 
     def update(self, state, action, reward, next_state):
         # Init states if new
         if state not in self.q_table:
-            self.q_table[state] = {a: 0.0 for a in ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]}
+            self.q_table[state] = {a: 0.0 for a in ACTIONS}
         if next_state not in self.q_table:
-            self.q_table[next_state] = {a: 0.0 for a in ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]}
+            self.q_table[next_state] = {a: 0.0 for a in ACTIONS}
 
         old_val = self.q_table[state][action]
         next_max = max(self.q_table[next_state].values())

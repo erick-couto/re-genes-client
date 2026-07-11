@@ -15,9 +15,11 @@ import numpy as np
 from regenes_agent import BaseAgent
 
 VC = 4
-I, H, O = 77, 16, 5           # entradas, ocultas, ações
+# v2 (predação): 102 entradas = energy + stomach + 4 canais x 25 (obstáculos, cheiro,
+# inimigo, perigo); 9 saídas = 4 move + stay + 4 attack. Mudar => reset do theta.
+I, H, O = 102, 16, 9          # entradas, ocultas, ações
 SIGMA, ALPHA, BATCH = 0.1, 0.05, 32
-WEIGHTS_FILE = os.path.join(os.path.dirname(__file__), "es_theta.npy")
+WEIGHTS_FILE = os.path.join(os.path.dirname(__file__), "es_theta_v2.npy")  # v2 = predação
 
 FOOD_REWARD, ENERGY_REWARD, SURVIVAL_REWARD = 200.0, 1.0, 1.0
 
@@ -85,12 +87,12 @@ class ESAgent(BaseAgent):
 
     def _inputs(self, vision, energy, stomach):
         x = np.zeros(I, dtype=np.float32)
-        if not vision or len(vision[0]) < 9:
+        if not vision or len(vision) < 4 or len(vision[0]) < 9:
             return x
         x[0] = self.energy_norm(energy)
         x[1] = min(stomach, self.stomach_size) / self.stomach_size
         k = 2
-        for ch in (0, 1, 2):
+        for ch in (0, 1, 2, 3):  # obstáculos, cheiro, inimigo, perigo
             for dy in range(-2, 3):
                 for dx in range(-2, 3):
                     v = vision[ch][VC + dy][VC + dx]
@@ -119,7 +121,7 @@ class ESAgent(BaseAgent):
 
 
 def _log_perf(fitness, ticks, food):
-    f = os.path.join(os.path.dirname(__file__), "es_performance.csv")
+    f = os.path.join(os.path.dirname(__file__), "es_performance_v2.csv")
     new = not os.path.exists(f)
     with open(f, "a", encoding="utf-8") as fh:
         if new:

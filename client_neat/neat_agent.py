@@ -49,13 +49,14 @@ class NeatAgent(BaseAgent):
         self.endorphin = 50.0
 
     def _inputs(self, vision, energy, stomach):
-        if not vision or len(vision[0]) < 9:
-            return [0.0] * 79
+        # 104 = bias + energy + stomach + endorfina + 4 canais x 25 celulas (5x5)
+        if not vision or len(vision) < 4 or len(vision[0]) < 9:
+            return [0.0] * 104
         inp = [1.0,
                self.energy_norm(energy),
                min(stomach, self.stomach_size) / self.stomach_size,
                self.endorphin / 100.0]
-        for ch in (0, 1, 2):  # walls, scent, enemies
+        for ch in (0, 1, 2, 3):  # obstaculos, cheiro, inimigo, perigo
             for dy in range(-2, 3):
                 for dx in range(-2, 3):
                     val = vision[ch][VC + dy][VC + dx]
@@ -107,7 +108,7 @@ def _maybe_save(pop, every=50):
 
 
 def _log_perf(gid, fitness, ticks, food):
-    f = os.path.join(os.path.dirname(__file__), "neat_performance.csv")
+    f = os.path.join(os.path.dirname(__file__), "neat_performance_v2.csv")
     new = not os.path.exists(f)
     with open(f, "a", encoding="utf-8") as fh:
         if new:
@@ -120,7 +121,8 @@ def make_factory():
     novo a cada vida (e recebe a fitness de volta no on_death)."""
     base = os.path.dirname(__file__)
     config_path = os.path.join(base, "config-feedforward")
-    pop = ContinuousPopulation(config_path, checkpoint_file=os.path.join(base, "neat-checkpoint-continuous-auto"))
+    # v2 = predação (104 in / 9 out). Nome novo => começa fresco; checkpoint v1 preservado.
+    pop = ContinuousPopulation(config_path, checkpoint_file=os.path.join(base, "neat-checkpoint-v2-auto"))
 
     def factory():
         gid, genome = pop.get_genome()

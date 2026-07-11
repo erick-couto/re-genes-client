@@ -9,10 +9,9 @@ Q-table compartilhada (self_learns=True).
 import os
 
 from regenes_agent import BaseAgent
-from client_memoriam import BrainManager  # reusa a lógica tabular legada
+from client_memoriam import BrainManager, ACTIONS  # reusa lógica tabular + lista de ações (9)
 
-VC = 4  # centro do 9x9
-ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]  # índice == action_spec do servidor
+VC = 4  # centro do 9x9 | ACTIONS (9): índice == action_spec do servidor (v2)
 
 
 class MemoriamAgent(BaseAgent):

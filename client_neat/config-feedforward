@@ -76,12 +76,13 @@ node_add_prob           = 0.2
 node_delete_prob        = 0.2
 
 # Network parameters
-# num_hidden = 0: deixa o NEAT DESCOBRIR a topologia (add-node mutation) em vez de
-# impor 10 neuronios ocultos de largada. num_inputs fixo em 79 (nao mude sem quebrar
-# a leitura de visao do cliente).
+# num_hidden = 0: deixa o NEAT DESCOBRIR a topologia (add-node mutation).
+# v2 (predacao): 104 entradas = bias + energy + stomach + endorfina + 4 canais x 25 celulas
+# (obstaculos, cheiro, inimigo, PERIGO); 9 saidas = 4 move + stay + 4 attack.
+# Mudar estes numeros exige RESET da populacao (topologia incompativel).
 num_hidden              = 0
-num_inputs              = 79
-num_outputs             = 5
+num_inputs              = 104
+num_outputs             = 9
 
 [DefaultSpeciesSet]
 compatibility_threshold = 4.0
