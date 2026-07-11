@@ -3,6 +3,7 @@ import websockets
 import json
 import neat
 import os
+import ssl
 import math
 import pickle
 import sys
@@ -11,6 +12,25 @@ from neat.math_util import mean
 
 # --- CONFIGURATION ---
 SERVER_URL = "wss://re-genes.is/ws/join?species=NEAT_Evo"
+
+
+def _make_ssl_context():
+    """Contexto TLS tolerante ao MITM local do Avast (Web/Mail Shield).
+
+    O Python 3.13+ liga VERIFY_X509_STRICT por padrao; o root que o Avast injeta
+    na cadeia tem 'Basic Constraints' nao-critical, reprovado pelo modo estrito
+    (erro enganoso 'certificate has expired'/'Basic Constraints not marked critical').
+    Removemos SO essa checagem estrutural extra — a cadeia continua sendo validada
+    contra o trust store do SO e o hostname e verificado. Em maquinas sem Avast e
+    inofensivo (certificados reais passam no modo estrito de qualquer forma).
+    """
+    ctx = ssl.create_default_context()
+    ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return ctx
+
+
+# Reusado por todas as conexoes (so relevante para wss://).
+SSL_CONTEXT = _make_ssl_context() if SERVER_URL.startswith("wss") else None
 CONFIG_FILE = "config-feedforward"
 CHECKPOINT_PREFIX = "neat-checkpoint-continuous-"
 AUTOSAVE_INTERVAL = 300  # Saves every 5 minutes (approx) or by event
@@ -283,7 +303,7 @@ class NeatAmeba:
     async def run(self):
         global TOTAL_ACTIONS, SESSION_TOTAL
         try:
-            async with websockets.connect(SERVER_URL) as websocket:
+            async with websockets.connect(SERVER_URL, ssl=SSL_CONTEXT) as websocket:
                 # Handshake
                 welcome = await websocket.recv()
                 welcome_data = json.loads(welcome)

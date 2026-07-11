@@ -2,10 +2,22 @@ import asyncio
 import websockets
 import json
 import random
+import ssl
 import time
 
 # Server URL
 SERVER_URL = "wss://re-genes.is/ws/join?species=Prokaryota"
+
+
+def _make_ssl_context():
+    """Tolera o MITM local do Avast: remove SO o VERIFY_X509_STRICT (o root do
+    Avast tem Basic Constraints nao-critical). Cadeia + hostname seguem validados."""
+    ctx = ssl.create_default_context()
+    ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return ctx
+
+
+SSL_CONTEXT = _make_ssl_context() if SERVER_URL.startswith("wss") else None
 
 async def live_a_life(generation):
     """
@@ -16,7 +28,7 @@ async def live_a_life(generation):
     print(f"🔌 Connecting to server: {SERVER_URL}...")
     
     try:
-        async with websockets.connect(SERVER_URL) as websocket:
+        async with websockets.connect(SERVER_URL, ssl=SSL_CONTEXT) as websocket:
             
             # --- PHASE 1: BIRTH (Handshake) ---
             welcome_msg = await websocket.recv()

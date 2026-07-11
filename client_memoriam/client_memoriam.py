@@ -3,11 +3,23 @@ import websockets
 import json
 import random
 import os
+import ssl
 import sys
 from collections import  defaultdict
 
 # --- CONFIGURAÇÃO ---
 SERVER_URL = "wss://re-genes.is/ws/join?species=Memoriam"
+
+
+def _make_ssl_context():
+    """Tolera o MITM local do Avast: remove SO o VERIFY_X509_STRICT (o root do
+    Avast tem Basic Constraints nao-critical). Cadeia + hostname seguem validados."""
+    ctx = ssl.create_default_context()
+    ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return ctx
+
+
+SSL_CONTEXT = _make_ssl_context() if SERVER_URL.startswith("wss") else None
 Q_TABLE_BASE_NAME = "qtable_memoriam"
 Q_TABLE_BASE_NAME = "qtable_memoriam"
 DEFAULT_BATCH_SIZE = 1  # Standard Default if no args
@@ -158,7 +170,7 @@ class AgentAmeba:
 
     async def run(self):
         try:
-            async with websockets.connect(SERVER_URL) as ws:
+            async with websockets.connect(SERVER_URL, ssl=SSL_CONTEXT) as ws:
                 # 1. Handshake
                 welcome = json.loads(await ws.recv())
                 server_id = welcome['id']
