@@ -13,9 +13,11 @@ activation_mutate_rate  = 0.1
 activation_options      = tanh sigmoid relu
 
 # Structural mutation options
-# initial_connection: começar MÍNIMO é o princípio do NEAT (complexifica sob demanda).
-# 'full_nodirect' com 79 inputs + 10 hidden nascia com ~840 conexões (redes gigantes e
-# quase aleatórias). 'partial_direct 0.5' conecta ~50% inputs->outputs e cresce a partir daí.
+# initial_connection: comecar MINIMO e o principio do NEAT (complexifica sob demanda).
+# 'full_nodirect' com 79 inputs + 10 hidden nascia com ~840 conexoes (redes gigantes e
+# quase aleatorias). 'partial_direct 0.5' conecta ~50% inputs->outputs e cresce dai.
+# NOTA: comentarios deste arquivo devem ser ASCII puro. O neat-python le o arquivo
+# sem declarar encoding e no Windows cai em cp1252 (acentos quebram o parser).
 single_structural_mutation = False
 structural_mutation_surer  = default
 initial_connection         = partial_direct 0.5
@@ -75,8 +77,8 @@ node_delete_prob        = 0.2
 
 # Network parameters
 # num_hidden = 0: deixa o NEAT DESCOBRIR a topologia (add-node mutation) em vez de
-# impor 10 neurônios ocultos de largada. num_inputs fixo em 79 (não mude sem quebrar
-# a leitura de visão do cliente).
+# impor 10 neuronios ocultos de largada. num_inputs fixo em 79 (nao mude sem quebrar
+# a leitura de visao do cliente).
 num_hidden              = 0
 num_inputs              = 79
 num_outputs             = 5
