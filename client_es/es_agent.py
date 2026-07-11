@@ -29,10 +29,18 @@ class ESManager:
 
     def __init__(self):
         self.dim = H * I + H + O * H + O
+        self.theta = None
         if os.path.exists(WEIGHTS_FILE):
-            self.theta = np.load(WEIGHTS_FILE)
-            print(f"📂 ES: theta carregado ({self.dim} pesos)")
-        else:
+            try:
+                t = np.load(WEIGHTS_FILE)
+                if t.shape == (self.dim,):     # ignora theta de outra versão (shape errado)
+                    self.theta = t.astype(np.float32)
+                    print(f"📂 ES: theta carregado ({self.dim} pesos)")
+                else:
+                    print(f"⚠️ ES: theta salvo shape {t.shape} != ({self.dim},). Começando do zero.")
+            except Exception as e:
+                print(f"⚠️ ES: falha ao carregar theta ({e}). Começando do zero.")
+        if self.theta is None:
             self.theta = np.random.randn(self.dim).astype(np.float32) * 0.1
             print(f"🌱 ES: theta novo ({self.dim} pesos)")
         self.samples = []   # (eps, fitness)

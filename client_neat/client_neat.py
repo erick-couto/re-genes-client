@@ -89,22 +89,28 @@ class ContinuousPopulation:
                                   neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                   config_path)
         
-        if checkpoint_file and os.path.exists(checkpoint_file):
+        loaded = False
+        # Só tenta carregar se o arquivo existe E não está vazio (0 bytes = escrita
+        # interrompida). Antes, um checkpoint vazio derrubava o boot ('Ran out of input').
+        if checkpoint_file and os.path.exists(checkpoint_file) and os.path.getsize(checkpoint_file) > 0:
             print(f"📂 Loading checkpoint: {checkpoint_file}")
             try:
                 with gzip.open(checkpoint_file) as f:
                     self.p = pickle.load(f)
-                # Unify config: use the one from the population if it exists, otherwise the new one
                 if hasattr(self.p, 'config'):
                     self.config = self.p.config
                 else:
                     self.p.config = self.config
+                loaded = True
             except Exception as e:
-                print(f"⚠️ Failed to load custom checkpoint: {e}")
-                print("🔄 Attempting legacy restore...")
-                self.p = neat.Checkpointer.restore_checkpoint(checkpoint_file)
-                self.config = self.p.config
-        else:
+                print(f"⚠️ Falha no load custom ({e}); tentando restore legado…")
+                try:
+                    self.p = neat.Checkpointer.restore_checkpoint(checkpoint_file)
+                    self.config = self.p.config
+                    loaded = True
+                except Exception as e2:
+                    print(f"⚠️ Restore legado também falhou ({e2}). Começando do zero.")
+        if not loaded:
             print("🌱 Creating new population...")
             self.p = neat.Population(self.config)
             
@@ -215,9 +221,12 @@ class ContinuousPopulation:
     def save_checkpoint(self):
         self.p.species.speciate(self.config, self.p.population, self.p.generation)
         filename = os.path.join(os.path.dirname(__file__), f"{CHECKPOINT_PREFIX}auto")
-        # print(f"💾 Saving checkpoint to {filename}...")
-        with gzip.open(filename, 'wb', compresslevel=5) as f:
+        # Escrita ATÔMICA: grava num temp e renomeia. Se interromper no meio, o
+        # checkpoint bom antigo permanece intacto (nunca gera arquivo de 0 bytes).
+        tmp = filename + ".tmp"
+        with gzip.open(tmp, 'wb', compresslevel=5) as f:
             pickle.dump(self.p, f)
+        os.replace(tmp, filename)
 
     def _breed_child(self):
         valid_genomes = [g for g in self.p.population.values() if g.fitness is not None]
