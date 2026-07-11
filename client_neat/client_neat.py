@@ -56,7 +56,7 @@ def _make_ssl_context():
 # Reusado por todas as conexoes (so relevante para wss://).
 SSL_CONTEXT = _make_ssl_context() if SERVER_URL.startswith("wss") else None
 CONFIG_FILE = "config-feedforward"
-CHECKPOINT_PREFIX = "neat-checkpoint-v2-"  # v2 = predação (104 in / 9 out). v1 preservado.
+CHECKPOINT_PREFIX = "neat-checkpoint-v3-"  # v3 = 8 ocultos semeados. v2/v1 preservados.
 AUTOSAVE_INTERVAL = 300  # Saves every 5 minutes (approx) or by event
 
 import itertools

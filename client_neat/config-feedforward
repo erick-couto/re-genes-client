@@ -13,14 +13,13 @@ activation_mutate_rate  = 0.1
 activation_options      = tanh sigmoid relu
 
 # Structural mutation options
-# initial_connection: comecar MINIMO e o principio do NEAT (complexifica sob demanda).
-# 'full_nodirect' com 79 inputs + 10 hidden nascia com ~840 conexoes (redes gigantes e
-# quase aleatorias). 'partial_direct 0.5' conecta ~50% inputs->outputs e cresce dai.
+# v3: densidade 0.3 (era 0.5) para compensar os 8 ocultos semeados e nao inchar
+# (mantem caminho linear direto + caminho pelos ocultos). ~550 conexoes iniciais.
 # NOTA: comentarios deste arquivo devem ser ASCII puro. O neat-python le o arquivo
 # sem declarar encoding e no Windows cai em cp1252 (acentos quebram o parser).
 single_structural_mutation = False
 structural_mutation_surer  = default
-initial_connection         = partial_direct 0.5
+initial_connection         = partial_direct 0.3
 
 # Node aggregation options
 aggregation_default     = sum
@@ -76,11 +75,12 @@ node_add_prob           = 0.2
 node_delete_prob        = 0.2
 
 # Network parameters
-# num_hidden = 0: deixa o NEAT DESCOBRIR a topologia (add-node mutation).
-# v2 (predacao): 104 entradas = bias + energy + stomach + endorfina + 4 canais x 25 celulas
-# (obstaculos, cheiro, inimigo, PERIGO); 9 saidas = 4 move + stay + 4 attack.
-# Mudar estes numeros exige RESET da populacao (topologia incompativel).
-num_hidden              = 0
+# v3: num_hidden = 8 (era 0). A tarefa v2 (predador/presa/cla) exige logica CONDICIONAL
+# (nao-linear); com 0 ocultos a populacao ficava presa em perceptron linear (dados reais:
+# 0.8 oculto de media apos 1900 vidas). Semear 8 ocultos da capacidade nao-linear de
+# largada, sem decretar comportamento. NEAT ainda cresce dai (add-node). Reset obrigatorio.
+# 104 entradas = bias + energy + stomach + endorfina + 4 canais x 25 (5x5); 9 saidas.
+num_hidden              = 8
 num_inputs              = 104
 num_outputs             = 9
 

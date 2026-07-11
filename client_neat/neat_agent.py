@@ -108,7 +108,7 @@ def _maybe_save(pop, every=50):
 
 
 def _log_perf(gid, fitness, ticks, food):
-    f = os.path.join(os.path.dirname(__file__), "neat_performance_v2.csv")
+    f = os.path.join(os.path.dirname(__file__), "neat_performance_v3.csv")
     new = not os.path.exists(f)
     with open(f, "a", encoding="utf-8") as fh:
         if new:
@@ -121,8 +121,8 @@ def make_factory():
     novo a cada vida (e recebe a fitness de volta no on_death)."""
     base = os.path.dirname(__file__)
     config_path = os.path.join(base, "config-feedforward")
-    # v2 = predação (104 in / 9 out). Nome novo => começa fresco; checkpoint v1 preservado.
-    pop = ContinuousPopulation(config_path, checkpoint_file=os.path.join(base, "neat-checkpoint-v2-auto"))
+    # v3 = 8 ocultos semeados. Nome novo => começa fresco; checkpoints v1/v2 preservados.
+    pop = ContinuousPopulation(config_path, checkpoint_file=os.path.join(base, "neat-checkpoint-v3-auto"))
 
     def factory():
         gid, genome = pop.get_genome()
