@@ -58,6 +58,22 @@ def mutate(genome):
     return genome
 
 
+def crossover(g1, g2, key: int = 0):
+    """
+    Cruzamento sexual NEAT (recombinação alinhada por número de inovação — junta genes
+    das duas linhagens; genes disjuntos/excedentes vêm do pai mais apto).
+
+    Como NÃO há fitness externa (a seleção é do MUNDO, não uma nota), igualamos a fitness
+    dos dois pais -> cruzamento SIMÉTRICO. Retorna o filho ainda SEM mutar (mute depois).
+    """
+    cfg = load_config()
+    g1.fitness = g1.fitness if getattr(g1, "fitness", None) is not None else 1.0
+    g2.fitness = g2.fitness if getattr(g2, "fitness", None) is not None else 1.0
+    child = neat.DefaultGenome(key)
+    child.configure_crossover(g1, g2, cfg.genome_config)
+    return child
+
+
 def build_net(genome):
     """Rede executável (forward pass) a partir do genoma."""
     cfg = load_config()

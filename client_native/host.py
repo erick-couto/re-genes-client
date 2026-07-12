@@ -28,7 +28,9 @@ import neat_brain as nb
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
-URL = BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_topology&wants_brain=1&self_learns=0"
+OP = os.getenv("REGENES_OPERATOR", "")  # dono da linhagem (carimbo na genealogia)
+URL = (BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_topology"
+       "&wants_brain=1&self_learns=0" + (f"&operator={OP}" if OP else ""))
 
 
 def _ssl_ctx():
@@ -80,22 +82,25 @@ async def run_one(idx: int):
         try:
             async with websockets.connect(URL, max_size=8_000_000, ssl=SSL) as ws:
                 welcome = json.loads(await ws.recv())
-                seed = welcome.get("brain")
-                do_mut = welcome.get("brain_mutate", False)
+                seed_a = welcome.get("brain_a")
+                seed_b = welcome.get("brain_b")
                 body = welcome.get("body") or welcome.get("stats") or {}
                 stomach_size = body.get("stomach_size", 200) or 200
 
-                # HERANÇA: monta o cérebro a partir da semente (pacote compacto) do mundo
-                if seed:
-                    g = nb.unpack(seed)
-                    if do_mut:
-                        nb.mutate(g)
-                    origin = "herdado+mut" if do_mut else "herdado"
+                # HERANÇA: 2 pais -> cruzamento sexual + mutação; 1 -> só mutação; 0 -> primordial.
+                if seed_a and seed_b:
+                    g = nb.crossover(nb.unpack(seed_a), nb.unpack(seed_b), random.randint(1, 1_000_000))
+                    nb.mutate(g)
+                    origin = "cruzamento"
+                elif seed_a or seed_b:
+                    g = nb.unpack(seed_a or seed_b)
+                    nb.mutate(g)
+                    origin = "mutacao"
                 else:
                     g = nb.random_genome(random.randint(1, 1_000_000))
                     origin = "primordial"
 
-                # reporta o cérebro final (compactado) pro mundo (pra herdar/arquivar)
+                # reporta o GENOMA final (compactado); o mundo envolve com genealogia+assinatura
                 await ws.send(json.dumps({"type": "brain", "brain": nb.pack(g)}))
                 net = nb.build_net(g)
                 nodes, conns = nb.complexity(g)
