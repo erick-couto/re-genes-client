@@ -143,13 +143,16 @@ async def run_swarm(factory, n: int):
     errors = {"count": 0}
 
     async def spawn():
-        agent = factory()
+        agent = None
         try:
-            await _run_one(agent)
+            agent = factory()          # DENTRO do try: se o factory (get_genome) lançar,
+            await _run_one(agent)       # a gente captura em vez de matar os nascimentos calado.
         except Exception as e:
             errors["count"] += 1
-            if errors["count"] <= 3:
-                print(f"⚠️  {getattr(agent,'species','?')} erro: {e}")
+            if errors["count"] <= 5 or errors["count"] % 100 == 0:
+                sp = getattr(agent, "species", "?")
+                print(f"⚠️  erro #{errors['count']} ({sp}): {type(e).__name__}: {e}")
+            await asyncio.sleep(0.25)    # evita loop apertado de falha (não pega 100% de CPU)
 
     print(f"🚀 Arena: subindo {n}x {factory().species} contra {SERVER_URL}")
     while True:

@@ -175,31 +175,33 @@ class ContinuousPopulation:
                 self.active_genome_ids.add(gid)
                 return gid, genome
                 
-        # If we are here, all current genomes are either active or have fitness.
-        # It's time to breed a replacement for the "worst" or just adds to pool?
-        # Steady State: Remove worst, Breed new.
-        # Or simply Breed new and grow pool? NEAT usually has fixed pop size.
-        
-        # Simple Steady State Logic:
-        # 1. Speciate (Update species with current fitnesses)
-        self.p.species.speciate(self.config, self.p.population, self.p.generation)
-        
-        # 2. Spawn Child
-        # We use DefaultReproduction's logic but manually. 
-        # Since accessing internal reproduction logic is hard, we implement basic tournament here.
-        
-        child = self._breed_child()
-        
+        # Steady-state: cria um substituto. IMPORTANTE: o breeding usa torneio GLOBAL
+        # (não por espécie), então NÃO chamamos speciate aqui. Antes chamávamos 2x por
+        # nascimento — era O(pop x espécies), acumulava espécies sem poda de estagnação
+        # e, ao longo de centenas de gerações, travava os nascimentos (ou lançava exceção
+        # engolida). Speciate agora só no incremento de geração e no checkpoint (ocasional).
+        try:
+            child = self._breed_child()
+        except Exception as e:
+            print(f"⚠️ NEAT breed falhou ({type(e).__name__}: {e}); gerando genoma novo.")
+            child = self._fresh_genome()
 
-        # 3. Add to population
-        if len(self.p.population) > self.config.pop_size * 2: # Cull looser cap
-             self._cull_population()
-             
+        if len(self.p.population) > self.config.pop_size * 2:  # poda mantém a pop limitada
+            self._cull_population()
+
         self.p.population[child.key] = child
-        self.p.species.speciate(self.config, self.p.population, self.p.generation)
-        
         self.active_genome_ids.add(child.key)
         return child.key, child
+
+    def _fresh_genome(self):
+        """Genoma novo do zero (fallback resiliente: nascimento nunca trava)."""
+        tracker = getattr(self.config.genome_config, 'innovation_tracker', None)
+        if tracker is None and hasattr(self.p.reproduction, 'innovation_tracker'):
+            self.config.genome_config.innovation_tracker = self.p.reproduction.innovation_tracker
+        gid = next(self.p.reproduction.genome_indexer)
+        child = self.config.genome_type(gid)
+        child.configure_new(self.config.genome_config)
+        return child
 
     def report_death(self, genome_id, fitness):
         """Called when ameba dies."""
@@ -214,8 +216,11 @@ class ContinuousPopulation:
         if self.deaths_since_gen_inc >= self.config.pop_size:
             self.p.generation += 1
             self.deaths_since_gen_inc = 0
-            # Speciate occasionally
-            self.p.species.speciate(self.config, self.p.population, self.p.generation)
+            # Speciate occasionally (protegido: um erro aqui não pode matar o ciclo de vida)
+            try:
+                self.p.species.speciate(self.config, self.p.population, self.p.generation)
+            except Exception as e:
+                print(f"⚠️ speciate (gen inc) falhou: {type(e).__name__}: {e}")
             print(f"📈 [GEN] Incrementing generation to {self.p.generation} | Pop: {len(self.p.population)}")
 
     def save_checkpoint(self):
