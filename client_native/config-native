@@ -14,13 +14,16 @@ activation_options      = tanh sigmoid relu
 
 # Structural mutation options
 # Config ISOLADO do executor nativo (Fase 2, protocolo v3 EGOCENTRICO).
-# densidade 0.3: sao 161 entradas (cone egocentrico de 31 celulas x 5 canais + escalares),
-# entao 0.3 da 741 conexoes de largada (medido) e garante que o cone e o marca-passo
-# cheguem a decisao ja no gen-0. NEAT cresce/poda dai (conn_add_prob=0.4).
-# NOTA: comentarios ASCII puro (neat-python le em cp1252 no Windows; acento quebra o parser).
+# NASCER MAGRO (NEAT canonico, Stanley 2002): num_hidden=0 e densidade baixa. A criatura
+# nasce quase pelada; o MUNDO (selecao) constroi a estrutura sob demanda via node_add/conn_add.
+# So cresce o que se paga -> sem erosao a discutir (nada e adicionado a toa). densidade 0.1 com
+# 0 ocultos da ~113 conexoes DIRETAS input->output de largada: reativo o bastante pra nao nascer
+# pedra (o marca-passo ja chega a alguma saida), longe do teto de 741 que era semeadura imposta.
+# Cold-start atenuado por ambiente (marca-passo + FERTILITY_PCT mais gentil no mundo), nao por
+# semear cerebro rico. NOTA: comentarios ASCII puro (parser cp1252 quebra com acento).
 single_structural_mutation = False
 structural_mutation_surer  = default
-initial_connection         = partial_direct 0.3
+initial_connection         = partial_direct 0.1
 
 # Node aggregation options
 aggregation_default     = sum
@@ -42,8 +45,11 @@ compatibility_disjoint_coefficient = 1.0
 compatibility_weight_coefficient   = 0.5
 
 # Connection add/remove rates
+# ADD-ONLY (par natural do nascer magro): delecao = 0. Com nascer magro, a complexidade CRESCE
+# da estaca zero conforme a selecao premia; deletar so brigaria com esse crescimento. A poda e
+# responsabilidade da MORTE do genoma (selecao pura), nao do operador. Sem cascata, sem erosao.
 conn_add_prob           = 0.4
-conn_delete_prob        = 0.1
+conn_delete_prob        = 0.0
 
 # Node response options
 response_init_type      = gaussian
@@ -72,14 +78,20 @@ weight_mutate_rate      = 0.9
 weight_replace_rate     = 0.1
 
 # Node add/remove rates
+# node_delete=0: matar a cascata (apagar um oculto levava dezenas de ligacoes de uma vez) foi o
+# driver #1 da erosao medida (741->~230 em 5h, deriva do operador, nao escolha do mundo). Com
+# nascer magro + add-only, ocultos SO surgem quando node_add divide uma conexao que a selecao
+# manteve -> profundidade/nao-linearidade cresce sob demanda, do jeito canonico do NEAT.
 node_add_prob           = 0.2
-node_delete_prob        = 0.2
+node_delete_prob        = 0.0
 
 # Network parameters
 # v3.1 EGOCENTRICO: 161 entradas = bias + energy + stomach + endorfina + MARCA-PASSO(sin,cos)
 # + 5 canais x 31 (cone de visao pra frente). 7 saidas (frente, tras, vira-esq, vira-dir,
-# fica, ataca-frente, EMPURRA-frente). 8 ocultos semeados. Trocar num_inputs/outputs exige RESET.
-num_hidden              = 8
+# fica, ataca-frente, EMPURRA-frente). Trocar num_inputs/outputs exige RESET.
+# num_hidden=0: NASCER MAGRO -- sem camada oculta semeada; a profundidade emerge por node_add
+# sob selecao (NEAT canonico). Era 8 (semeadura imposta); ver Structural mutation options.
+num_hidden              = 0
 num_inputs              = 161
 num_outputs             = 7
 

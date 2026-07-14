@@ -12,6 +12,7 @@ data/
 
 # Estado de aprendizado/evolução gerado em runtime (não versionar)
 *_performance*.csv
+*_telemetry.csv
 es_theta*.npy
 neat-checkpoint-*
 NEAT_HALL_OF_FAME.md
