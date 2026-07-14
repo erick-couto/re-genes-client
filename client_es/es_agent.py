@@ -15,11 +15,13 @@ import numpy as np
 from regenes_agent import BaseAgent
 
 VC = 4
-# v2 (predação): 102 entradas = energy + stomach + 4 canais x 25 (obstáculos, cheiro,
-# inimigo, perigo); 9 saídas = 4 move + stay + 4 attack. Mudar => reset do theta.
-I, H, O = 102, 16, 9          # entradas, ocultas, ações
+# v6 EGOCÊNTRICO (paridade com nativo/NEAT): 159 entradas = energy + stomach + MARCA-PASSO
+# (sin,cos) + 5 canais x 31 (cone de visão pra frente: obstáculo, cheiro, inimigo, perigo,
+# COMIDA). 7 saídas = frente, trás, vira-esq, vira-dir, fica, ataca-frente, EMPURRA-frente. O
+# corpo tem FRENTE (GENESIS_BIBLE §13); marca-passo = relógio endógeno (§12). Mudar => reset.
+I, H, O = 159, 16, 7          # entradas, ocultas, ações
 SIGMA, ALPHA, BATCH = 0.1, 0.05, 32
-WEIGHTS_FILE = os.path.join(os.path.dirname(__file__), "es_theta_v2.npy")  # v2 = predação
+WEIGHTS_FILE = os.path.join(os.path.dirname(__file__), "es_theta_v4.npy")  # v4 = cone egocêntrico
 
 FOOD_REWARD, ENERGY_REWARD, SURVIVAL_REWARD = 200.0, 1.0, 1.0
 
@@ -93,23 +95,26 @@ class ESAgent(BaseAgent):
         self.energy_gained = 0.0
         self.last_energy = None
 
-    def _inputs(self, vision, energy, stomach):
+    def _inputs(self, vision, energy, stomach, pace_sin=0.0, pace_cos=0.0):
         x = np.zeros(I, dtype=np.float32)
-        if not vision or len(vision) < 4 or len(vision[0]) < 9:
+        if not vision or len(vision) < 5 or len(vision[0]) < 31:
             return x
         x[0] = self.energy_norm(energy)
         x[1] = min(stomach, self.stomach_size) / self.stomach_size
-        k = 2
-        for ch in (0, 1, 2, 3):  # obstáculos, cheiro, inimigo, perigo
-            for dy in range(-2, 3):
-                for dx in range(-2, 3):
-                    v = vision[ch][VC + dy][VC + dx]
-                    x[k] = 1.0 if (ch == 0 and v > 0) else v
-                    k += 1
+        x[2] = pace_sin   # marca-passo (seno da fase)
+        x[3] = pace_cos   # marca-passo (cosseno da fase)
+        k = 4
+        for ch in (0, 1, 2, 3, 4):  # cone flat de 31: obstáculo, cheiro, inimigo, perigo, comida
+            row = vision[ch]
+            for j in range(31):
+                v = row[j]
+                x[k] = 1.0 if (ch == 0 and v > 0) else v
+                k += 1
         return x
 
     def decide(self, obs) -> int:
-        x = self._inputs(obs.get("vision"), obs.get("energy", 0), obs.get("stomach", 0))
+        x = self._inputs(obs.get("vision"), obs.get("energy", 0), obs.get("stomach", 0),
+                         obs.get("pace_sin", 0.0), obs.get("pace_cos", 0.0))
         h = np.tanh(self.W1 @ x + self.b1)
         o = self.W2 @ h + self.b2
         self.ticks += 1
@@ -129,7 +134,7 @@ class ESAgent(BaseAgent):
 
 
 def _log_perf(fitness, ticks, food):
-    f = os.path.join(os.path.dirname(__file__), "es_performance_v2.csv")
+    f = os.path.join(os.path.dirname(__file__), "es_performance_v4.csv")
     new = not os.path.exists(f)
     with open(f, "a", encoding="utf-8") as fh:
         if new:

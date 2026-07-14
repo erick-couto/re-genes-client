@@ -113,8 +113,14 @@ async def _run_one(agent: BaseAgent):
         welcome = json.loads(await ws.recv())
         agent.on_welcome(welcome)
         commands = (agent.action_spec or {}).get("commands") or [
-            {"wire": {"action": "move", "direction": d}} for d in ("UP", "DOWN", "LEFT", "RIGHT")
-        ] + [{"wire": {"action": "stay"}}]
+            {"wire": {"action": "forward"}},
+            {"wire": {"action": "backward"}},
+            {"wire": {"action": "turn", "dir": "left"}},
+            {"wire": {"action": "turn", "dir": "right"}},
+            {"wire": {"action": "stay"}},
+            {"wire": {"action": "attack"}},
+            {"wire": {"action": "push"}},
+        ]
 
         while True:
             msg = json.loads(await ws.recv())
@@ -130,6 +136,9 @@ async def _run_one(agent: BaseAgent):
                     "energy": msg.get("energy", 0),
                     "stomach": msg.get("stomach", 0),
                     "tick": msg.get("tick"),
+                    # marca-passo interno (relógio endógeno) — ver GENESIS_BIBLE §12
+                    "pace_sin": msg.get("pace_sin", 0.0),
+                    "pace_cos": msg.get("pace_cos", 0.0),
                 }
                 idx = agent.decide(obs)
                 idx = max(0, min(int(idx), len(commands) - 1))
@@ -195,21 +204,19 @@ class GreedyAgent(BaseAgent):
     paradigm = "baseline_heuristic"
 
     def decide(self, obs) -> int:
+        # v3 EGOCÊNTRICO: a visão é o cone flat de 31. Índice 0 = célula sob ela;
+        # índice 2 = diretamente À FRENTE (f=1,l=0). Heurística run-and-tumble:
+        # anda em frente atrás de comida/cheiro; gira se topar parede ou pra varrer.
         v = obs.get("vision")
-        if not v:
-            return 4
-        walls, scent = v[0], v[1]
-        c = 4  # centro do 9x9
-        best_idx, best_val = 4, 0.0  # default: STAY
-        for idx, (dy, dx) in [(0, (-1, 0)), (1, (1, 0)), (2, (0, -1)), (3, (0, 1))]:
-            y, x = c + dy, c + dx
-            if walls[y][x] > 0:
-                continue
-            if scent[y][x] > best_val:
-                best_val, best_idx = scent[y][x], idx
-        if best_val > 0.0:
-            return best_idx
-        return random.randint(0, 3)  # sem cheiro à vista: perambula
+        if not v or len(v) < 5:
+            return 4  # stay
+        walls, scent, food = v[0], v[1], v[4]
+        AHEAD = 2
+        if walls[AHEAD] > 0:
+            return random.choice((2, 3))                 # parede à frente -> gira
+        if food[AHEAD] > 0 or scent[AHEAD] > scent[0]:
+            return 0                                      # comida/cheiro à frente -> avança
+        return 0 if random.random() < 0.7 else random.choice((2, 3))  # perambula (anda/gira)
 
 
 _SPECIES = {"random": RandomAgent, "greedy": GreedyAgent}

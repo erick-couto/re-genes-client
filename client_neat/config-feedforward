@@ -13,8 +13,9 @@ activation_mutate_rate  = 0.1
 activation_options      = tanh sigmoid relu
 
 # Structural mutation options
-# v3: densidade 0.3 (era 0.5) para compensar os 8 ocultos semeados e nao inchar
-# (mantem caminho linear direto + caminho pelos ocultos). ~550 conexoes iniciais.
+# v5: densidade 0.3. Com o cone egocentrico (161 entradas), 0.3 da ~680 conexoes de
+# largada (proximo das ~550 historicas) e garante que cone + marca-passo cheguem a
+# decisao ja no gen-0. NEAT cresce dai (conn_add_prob=0.4).
 # NOTA: comentarios deste arquivo devem ser ASCII puro. O neat-python le o arquivo
 # sem declarar encoding e no Windows cai em cp1252 (acentos quebram o parser).
 single_structural_mutation = False
@@ -79,10 +80,12 @@ node_delete_prob        = 0.2
 # (nao-linear); com 0 ocultos a populacao ficava presa em perceptron linear (dados reais:
 # 0.8 oculto de media apos 1900 vidas). Semear 8 ocultos da capacidade nao-linear de
 # largada, sem decretar comportamento. NEAT ainda cresce dai (add-node). Reset obrigatorio.
-# 104 entradas = bias + energy + stomach + endorfina + 4 canais x 25 (5x5); 9 saidas.
+# v7 EGOCENTRICO (paridade com o nativo): 161 entradas = bias + energy + stomach + endorfina
+# + MARCA-PASSO(sin,cos) + 5 canais x 31 (cone de visao pra frente). 7 saidas (frente, tras,
+# vira-esq, vira-dir, fica, ataca-frente, EMPURRA-frente). Trocar num_inputs/outputs => RESET.
 num_hidden              = 8
-num_inputs              = 104
-num_outputs             = 9
+num_inputs              = 161
+num_outputs             = 7
 
 [DefaultSpeciesSet]
 compatibility_threshold = 4.0

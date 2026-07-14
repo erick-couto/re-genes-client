@@ -415,23 +415,24 @@ class NeatAmeba:
                             # Integrate happiness over time (Area Under Curve)
                             self.accumulated_endorphin += self.endorphin
                             
-                            inputs = self.process_inputs(vision, energy, stomach)
+                            inputs = self.process_inputs(vision, energy, stomach,
+                                                         data.get('pace_sin', 0.0), data.get('pace_cos', 0.0))
                             outputs = self.net.activate(inputs)
                             
                             action_idx = outputs.index(max(outputs))
-                            
-                            cmd = "stay"
-                            direction = "UP"
-                            act_label = "STAY"
-                            
-                            if action_idx == 0: 
-                                cmd, direction, act_label = "move", "UP", "UP"
-                            elif action_idx == 1: 
-                                cmd, direction, act_label = "move", "DOWN", "DOWN"
-                            elif action_idx == 2: 
-                                cmd, direction, act_label = "move", "LEFT", "LEFT"
-                            elif action_idx == 3: 
-                                cmd, direction, act_label = "move", "RIGHT", "RIGHT"
+
+                            # v3 EGOCÊNTRICO: 6 ações (frente, trás, vira-esq, vira-dir, fica, ataca-frente)
+                            WIRE = [
+                                ("forward",  None,    "FORWARD"),
+                                ("backward", None,    "BACKWARD"),
+                                ("turn",     "left",  "TURN_L"),
+                                ("turn",     "right", "TURN_R"),
+                                ("stay",     None,    "STAY"),
+                                ("attack",   None,    "ATTACK"),
+                                ("push",     None,    "PUSH"),
+                            ]
+                            cmd, tdir, act_label = WIRE[action_idx] if 0 <= action_idx < len(WIRE) else WIRE[4]
+                            direction = tdir or ""   # só usado no replay/log
                             
                             # Stats Update
                             ACTION_STATS[act_label] += 1
@@ -452,10 +453,9 @@ class NeatAmeba:
                             }
                             self.history.append(step_record)
                             
-                            await websocket.send(json.dumps({
-                                "action": cmd,
-                                "direction": direction
-                            }))
+                            wire = {"action": cmd}
+                            if tdir: wire["dir"] = tdir
+                            await websocket.send(json.dumps(wire))
 
                             if self.genome_id % 10 == 0 and tick_count % 20 == 0:
                                self._log_debug(inputs, outputs, act_label)
@@ -511,50 +511,29 @@ class NeatAmeba:
         # Inputs: 0=Bias, 1=Energy, 2=Stomach, 3=Endorphin
         print(f"[G{self.genome_id}] E:{fmt(inputs[1])} S:{fmt(inputs[2])} ❤️:{fmt(inputs[3])} -> {dir}")
 
-    def process_inputs(self, vision, energy, stomach):
+    def process_inputs(self, vision, energy, stomach, pace_sin, pace_cos):
         """
-        New Topology: 79 Inputs (5x5 Vision + Status + Endorphin)
-        I0: Bias
-        I1: Energy (norm)
-        I2: Stomach (norm)
-        I3: Endorphin (norm)
-        I4-I28: Walls (25 Cells)
-        I29-I53: Scent (25 Cells)
-        I54-I78: Enemies (25 Cells)
+        v6 EGOCÊNTRICO: 161 entradas = 6 corpo + 5 canais x 31 células do CONE (frente-relativo).
+        I0: Bias | I1: Energy | I2: Stomach | I3: Endorphin | I4: pace_sin | I5: pace_cos
+        I6..I160: 5 canais [parede, cheiro, inimigo, perigo, comida] x 31 células do cone.
+        A visão já vem do mundo como listas flat de 31 (ordem do cone); aqui é só concatenar.
+        Marca-passo = relógio interno (GENESIS_BIBLE 12); cone = visão pra frente (13).
         """
-        if not vision or len(vision[0]) < 9: 
-            return [0.0] * 79
-        
-        # Center is at 4,4 (Radius 4 in 9x9 grid)
-        cx, cy = 4, 4
-        
-        # 5x5 Grid (including center 4,4)
-        inputs = [1.0] # Bias
+        if not vision or len(vision) < 5 or len(vision[0]) < 31:
+            return [0.0] * 161
+
+        inputs = [1.0]  # Bias
         inputs.append(min(energy, self.stomach_size) / self.stomach_size)
         inputs.append(min(stomach, self.stomach_size) / self.stomach_size)
-        
-        # New Input: Endorphin Level (Normalized 0.0 - 1.0)
         inputs.append(self.endorphin / 100.0)
-        
-        # We collect all 25 cells in range of -2 to +2
-        for dy in range(-2, 3):
-            for dx in range(-2, 3):
-                y, x = cy + dy, cx + dx
-                # Wall
-                inputs.append(1.0 if vision[0][y][x] > 0 else 0.0)
-        
-        for dy in range(-2, 3):
-            for dx in range(-2, 3):
-                y, x = cy + dy, cx + dx
-                # Scent
-                inputs.append(vision[1][y][x])
-                
-        for dy in range(-2, 3):
-            for dx in range(-2, 3):
-                y, x = cy + dy, cx + dx
-                # Enemies
-                inputs.append(vision[2][y][x])
-            
+        inputs.append(pace_sin)   # marca-passo (seno da fase)
+        inputs.append(pace_cos)   # marca-passo (cosseno da fase)
+
+        for ch in range(5):
+            row = vision[ch]
+            for k in range(31):
+                v = row[k]
+                inputs.append(1.0 if (ch == 0 and v > 0) else v)
         return inputs
 
     def _save_to_performance_log(self, fitness, ticks, food):
