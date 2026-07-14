@@ -22,6 +22,7 @@ import os
 import random
 import ssl
 import sys
+import time
 
 import websockets
 import neat_brain as nb
@@ -31,6 +32,25 @@ BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")  # dono da linhagem (carimbo na genealogia)
 URL = (BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_topology"
        "&wants_brain=1&self_learns=0" + (f"&operator={OP}" if OP else ""))
+
+# TELEMETRIA LOCAL de complexidade do cérebro (a produção só guarda sumários; isto dá a curva
+# na hora, sem depender de deploy do mundo). 1 linha por nascimento. Append síncrono é seguro no
+# asyncio single-thread (sem await no meio). Desligar com REGENES_TELEMETRY=0.
+_TELEMETRY = os.path.join(os.path.dirname(__file__), "native_telemetry.csv")
+_TELEMETRY_ON = os.getenv("REGENES_TELEMETRY", "1") != "0"
+
+
+def _telemetry(idx: int, origin: str, nodes: int, conns: int) -> None:
+    if not _TELEMETRY_ON:
+        return
+    try:
+        new = not os.path.exists(_TELEMETRY)
+        with open(_TELEMETRY, "a", encoding="ascii") as f:
+            if new:
+                f.write("unix_time,idx,origin,nodes,conns\n")
+            f.write(f"{time.time():.0f},{idx},{origin},{nodes},{conns}\n")
+    except OSError:
+        pass  # telemetria nunca derruba o executor
 
 
 def _ssl_ctx():
@@ -48,32 +68,31 @@ def _ssl_ctx():
 
 SSL = _ssl_ctx()
 
-# Mesmo encoding do client NEAT (arena justa): 104 = bias + energy + stomach + endorfina
-# + 4 canais x recorte 5x5 central. Canal 0 (obstáculos) é binarizado.
-def encode(vision, energy, stomach, stomach_size, endo):
-    if not vision or len(vision) < 4 or len(vision[0]) < 9:
-        return [0.0] * 104
+# Encoding do executor nativo (v3 EGOCÊNTRICO): 161 = bias + energy + stomach + endorfina
+# + MARCA-PASSO(sin,cos) + 5 canais x 31 células do CONE (frente-relativo). A visão já vem do
+# mundo como listas flat de 31 na ordem do cone; aqui é só concatenar. Marca-passo = relógio
+# interno (GENESIS_BIBLE §12); cone = visão pra frente (§13). Canal 0 (obstáculo) binarizado.
+def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos):
+    if not vision or len(vision) < 5 or len(vision[0]) < 31:
+        return [0.0] * 161
     ss = stomach_size or 1.0
-    inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0]
-    C = 4  # centro do 9x9
-    for ch in range(4):
-        for dy in range(-2, 3):
-            for dx in range(-2, 3):
-                v = vision[ch][C + dy][C + dx]
-                inp.append(1.0 if (ch == 0 and v > 0) else v)
+    inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos]
+    for ch in range(5):
+        row = vision[ch]
+        for k in range(31):
+            v = row[k]
+            inp.append(1.0 if (ch == 0 and v > 0) else v)
     return inp
 
-# índice -> comando de wire (bate com ACTION_SPEC do mundo)
+# índice -> comando de wire (bate com ACTION_SPEC do mundo, v3 egocêntrico: 7 ações)
 ACTIONS = [
-    {"action": "move", "direction": "UP"},
-    {"action": "move", "direction": "DOWN"},
-    {"action": "move", "direction": "LEFT"},
-    {"action": "move", "direction": "RIGHT"},
-    {"action": "stay"},
-    {"action": "attack", "direction": "UP"},
-    {"action": "attack", "direction": "DOWN"},
-    {"action": "attack", "direction": "LEFT"},
-    {"action": "attack", "direction": "RIGHT"},
+    {"action": "forward"},              # 0: anda pra frente (onde encara)
+    {"action": "backward"},             # 1: recua (ré, sem virar)
+    {"action": "turn", "dir": "left"},  # 2: gira à esquerda
+    {"action": "turn", "dir": "right"}, # 3: gira à direita
+    {"action": "stay"},                 # 4: fica
+    {"action": "attack"},               # 5: morde a célula à frente
+    {"action": "push"},                 # 6: empurra a célula à frente (sem dano; massa decide)
 ]
 
 
@@ -87,7 +106,12 @@ async def run_one(idx: int):
                 body = welcome.get("body") or welcome.get("stats") or {}
                 stomach_size = body.get("stomach_size", 200) or 200
 
-                # HERANÇA: 2 pais -> cruzamento sexual + mutação; 1 -> só mutação; 0 -> primordial.
+                # HERANÇA: 2 pais -> cruzamento sexual + mutação; 1 -> só mutação (bootstrap
+                # assexuado enquanto o banco não tem 2 provados); 0 -> primordial. O crossover é
+                # o que MISTURA linhagens de clientes/máquinas diferentes = diversidade no mundo
+                # distribuído. (BUG estrutural conhecido: inovação/id de nó são numerados por
+                # processo, então linhagens não alinham e o crossover erode genes + gera warnings.
+                # Fix correto = numeração GLOBAL/determinística de id de nó; NÃO remover o sexo.)
                 if seed_a and seed_b:
                     g = nb.crossover(nb.unpack(seed_a), nb.unpack(seed_b), random.randint(1, 1_000_000))
                     nb.mutate(g)
@@ -100,10 +124,14 @@ async def run_one(idx: int):
                     g = nb.random_genome(random.randint(1, 1_000_000))
                     origin = "primordial"
 
-                # reporta o GENOMA final (compactado); o mundo envolve com genealogia+assinatura
-                await ws.send(json.dumps({"type": "brain", "brain": nb.pack(g)}))
-                net = nb.build_net(g)
+                # reporta o GENOMA final (compactado) + complexidade (telemetria pro mundo logar,
+                # sem ele precisar decodificar o blob — respeita "cérebro opaco"). O mundo envolve
+                # com genealogia+assinatura e guarda.
                 nodes, conns = nb.complexity(g)
+                await ws.send(json.dumps({"type": "brain", "brain": nb.pack(g),
+                                          "nodes": nodes, "conns": conns}))
+                net = nb.build_net(g)
+                _telemetry(idx, origin, nodes, conns)
                 print(f"[{idx}] nasceu ({origin}) cerebro nos={nodes} lig={conns}")
 
                 endo, last_e = 50.0, None
@@ -125,7 +153,8 @@ async def run_one(idx: int):
                         if energy < stomach_size * 0.5:
                             endo -= 2.0
                         endo = max(0.0, min(100.0, endo))
-                        out = net.activate(encode(msg.get("vision"), energy, stomach, stomach_size, endo))
+                        out = net.activate(encode(msg.get("vision"), energy, stomach, stomach_size, endo,
+                                                  msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0)))
                         a = max(range(len(out)), key=lambda i: out[i])
                         await ws.send(json.dumps(ACTIONS[a]))
         except Exception as e:
@@ -139,4 +168,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nExecutor nativo encerrado.")
