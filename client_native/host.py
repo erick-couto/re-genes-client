@@ -18,6 +18,7 @@ Uso:
 """
 import asyncio
 import json
+import math
 import os
 import random
 import ssl
@@ -69,59 +70,66 @@ def _ssl_ctx():
 SSL = _ssl_ctx()
 
 # FÍSICA DA PERCEPÇÃO — acuidade ∝ capacidade neural (ver docs/FISICA_DA_PERCEPCAO.md no world).
-# "Você enxerga na resolução que seu cérebro consegue processar." Cérebro pobre vê grosso
-# (binário, cone em blocões, sem predação); afina sozinho conforme a linhagem evolui complexidade.
-# É lei de embodiment (como cubo-quadrado/Kleiber), não currículo agendado. Calculada no cliente,
-# no nascimento (cérebro é fixo em vida), a partir do C do próprio genoma — sem reset, 161 intacto.
-ACUITY_K = 400.0     # meia-saturação: A = C/(C+K)
-ACUITY_LMAX = 16     # teto de níveis de intensidade (binário -> contínuo)
-ACUITY_BMIN = 3      # grão espacial mínimo do cone (de 31 células)
-ACUITY_APRED = 0.5   # acuidade que destrava os canais de predação
-_PRED_CH = (2, 3)    # canais gated: 2=inimigo, 3=perigo (predação). 0=obstáculo,1=cheiro,4=comida = sempre.
+# "Você enxerga na resolução que seu cérebro consegue processar." A visão é BORRADA por um
+# desfoque gaussiano CONTÍNUO no cone, com largura sigma ∝ (1−A): cérebro pobre vê tudo smeared
+# (só o borrão); afina LISO conforme a linhagem evolui — CADA conexão a mais deixa um tico mais
+# nítido (gradiente SEM platô, pra a seleção conseguir catar; a versão em degraus travava a
+# catraca — dentes a ~80 conexões um do outro). Determinístico (sem ruído aleatório -> auditável).
+# Lei de embodiment (como cubo-quadrado/Kleiber), não currículo. Fixo no nascimento, client-side.
+ACUITY_K = 120.0        # meia-saturação: A = C/(C+K). Baixo -> gradiente morde na faixa magra.
+ACUITY_SIGMA_MAX = 6.0  # desfoque máximo (sigma no cone de 31 células) em A=0
+ACUITY_PRED_LO = 0.40   # predação (inimigo/perigo) entra em FADE contínuo de A=0.40...
+ACUITY_PRED_HI = 0.70   # ...até 100% em A=0.70 (sem degrau)
+_PRED_CH = (2, 3)       # canais de predação: 2=inimigo, 3=perigo. 0=obstáculo,1=cheiro,4=comida = sempre.
 
 
 def acuity_params(conns):
-    """C (conexões) -> (n_niveis_intensidade, n_bins_espaciais, ve_predacao, A). Fixo no nascimento."""
+    """C (conexões) -> (kernel_gaussiano, raio, peso_predacao, A). Fixo no nascimento."""
     A = conns / (conns + ACUITY_K)
-    L = max(2, round(2 + A * A * (ACUITY_LMAX - 2)))            # A^2 segura no binário mais tempo
-    B = max(ACUITY_BMIN, min(31, round(ACUITY_BMIN + A * A * (31 - ACUITY_BMIN))))
-    return (L, B, A > ACUITY_APRED, A)
+    sigma = ACUITY_SIGMA_MAX * (1.0 - A)
+    kernel, r = _blur_kernel(sigma)
+    pred_w = max(0.0, min(1.0, (A - ACUITY_PRED_LO) / (ACUITY_PRED_HI - ACUITY_PRED_LO)))
+    return (kernel, r, pred_w, A)
 
 
-def _pool31(row, B):
-    """31 células -> B blocos (média) -> reamostra de volta pros 31 slots (mantém num_inputs)."""
-    if B >= 31:
+def _blur_kernel(sigma):
+    """Kernel gaussiano 1D normalizado (raio ~3σ). σ quase 0 -> ([1.0], 0) = visão nítida."""
+    if sigma < 0.35:
+        return ([1.0], 0)
+    r = max(1, int(round(3.0 * sigma)))
+    ker = [math.exp(-(d * d) / (2.0 * sigma * sigma)) for d in range(-r, r + 1)]
+    s = sum(ker)
+    return ([w / s for w in ker], r)
+
+
+def _blur(row, kernel, r):
+    """Convolve o cone de 31 células com o kernel (borda: clamp). r=0 -> identidade (nítido)."""
+    if r == 0:
         return list(row[:31])
     out = [0.0] * 31
     for k in range(31):
-        b = (k * B) // 31                    # bloco a que a célula k pertence
-        lo, hi = (b * 31) // B, ((b + 1) * 31) // B
-        seg = row[lo:hi] or [row[k]]
-        out[k] = sum(seg) / len(seg)
+        acc = 0.0
+        for j in range(len(kernel)):
+            idx = k + j - r
+            idx = 0 if idx < 0 else (30 if idx > 30 else idx)
+            acc += kernel[j] * row[idx]
+        out[k] = acc
     return out
 
 
-def _quantize(v, L):
-    """Valor em [0,1] -> um de L níveis (L=2 => binário; L grande => ~contínuo)."""
-    if L >= 256:
-        return v
-    return round(v * (L - 1)) / (L - 1)
-
-
-# Encoding do executor nativo (v3 EGOCÊNTRICO): 161 = bias + energy + stomach + endorfina
-# + MARCA-PASSO(sin,cos) + 5 canais x 31 células do CONE, filtrados pela ACUIDADE do cérebro.
+# Encoding v3 EGOCÊNTRICO: 161 = bias + energy + stomach + endorfina + MARCA-PASSO(sin,cos)
+# + 5 canais x 31 do CONE, BORRADOS pela acuidade do cérebro (desfoque contínuo; predação em fade).
 def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity):
     if not vision or len(vision) < 5 or len(vision[0]) < 31:
         return [0.0] * 161
-    L, B, see_pred = acuity[0], acuity[1], acuity[2]
+    kernel, r, pred_w = acuity[0], acuity[1], acuity[2]
     ss = stomach_size or 1.0
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos]
     for ch in range(5):
-        if ch in _PRED_CH and not see_pred:
-            inp.extend([0.0] * 31)                       # canal de predação ainda escuro (invisível)
-            continue
-        pooled = _pool31(vision[ch], B)                  # resolução espacial (cone em blocões)
-        inp.extend(_quantize(v, L) for v in pooled)      # resolução de intensidade (binário->contínuo)
+        blurred = _blur(vision[ch], kernel, r)
+        if ch in _PRED_CH and pred_w < 1.0:
+            blurred = [v * pred_w for v in blurred]      # predação em fade-in contínuo
+        inp.extend(blurred)
     return inp
 
 # índice -> comando de wire (bate com ACTION_SPEC do mundo, v3 egocêntrico: 7 ações)
