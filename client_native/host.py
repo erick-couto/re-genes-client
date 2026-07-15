@@ -185,6 +185,8 @@ async def run_one(idx: int):
                       f"acuidade={acuity[3]:.2f} (niveis={acuity[0]} bins={acuity[1]} predacao={acuity[2]})")
 
                 endo, last_e = 50.0, None
+                viz_sent = False   # já mandei a ESTRUTURA nesta sessão de observação?
+                out_keys = set(nb.load_config().genome_config.output_keys)  # ids dos nós de saída
                 async for raw in ws:
                     msg = json.loads(raw)
                     if msg.get("type") == "UPDATE":
@@ -203,10 +205,30 @@ async def run_one(idx: int):
                         if energy < stomach_size * 0.5:
                             endo -= 2.0
                         endo = max(0.0, min(100.0, endo))
-                        out = net.activate(encode(msg.get("vision"), energy, stomach, stomach_size, endo,
-                                                  msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity))
+                        inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
+                                     msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity)
+                        out = net.activate(inp)
                         a = max(range(len(out)), key=lambda i: out[i])
                         await ws.send(json.dumps(ACTIONS[a]))
+
+                        # VIZ DE CÉREBRO: se algum viewer observa esta ameba, manda estrutura (1x) +
+                        # ativações (todo tick, 4 Hz). net.values tem os valores de TODOS os nós após
+                        # o activate — de graça. O mundo só relaya. Sem observador, não custa nada.
+                        if msg.get("viz"):
+                            act = {
+                                "inp": [round(x, 3) for x in inp],                       # 161 entradas (já borradas)
+                                "hid": {str(n): round(net.values.get(n, 0.0), 3)         # ocultos
+                                        for n in g.nodes if n not in out_keys},
+                                "out": [round(x, 3) for x in out],                       # 7 saídas
+                                "win": a,                                                 # ação vencedora
+                            }
+                            payload = {"type": "brain_viz", "act": act}
+                            if not viz_sent:
+                                payload["struct"] = nb.to_dict(g)   # topologia + pesos, uma vez
+                                viz_sent = True
+                            await ws.send(json.dumps(payload))
+                        else:
+                            viz_sent = False   # parou de observar -> reenvia estrutura na próxima
         except Exception as e:
             print(f"[{idx}] reconnect ({e.__class__.__name__}: {e})")
             await asyncio.sleep(1.0)
