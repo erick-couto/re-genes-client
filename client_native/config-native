@@ -52,8 +52,12 @@ conn_add_prob           = 0.4
 conn_delete_prob        = 0.0
 
 # Node response options
+# response ESCALA a soma antes do tanh: out = tanh(bias + response*Σ(w*x)). A saturacao (41%)
+# vem da SOMA de ~85 conexoes (peso medio so 2.3), nao de pesos gigantes -> cap de peso quase nao
+# ajuda. Baixar response de 1.0 pra 0.5 encolhe a soma e des-satura (medido: response=0.3 -> 29%).
+# Efeito gradual (afeta nos novos; os legados guardam response=1.0). Substrato, nao vies.
 response_init_type      = gaussian
-response_init_mean      = 1.0
+response_init_mean      = 0.5
 response_init_stdev     = 0.0
 response_max_value      = 30.0
 response_min_value      = -30.0
@@ -68,12 +72,16 @@ enabled_rate_to_true_add = 0.0
 enabled_rate_to_false_add = 0.0
 
 # Connection weight options
+# ANTI-SATURACAO (parte 2, secundaria): a saturacao (41% das saidas no talo) vem da SOMA de ~85
+# conexoes, nao de pesos gigantes (peso medio so 2.3) -> o cap (30->8) quase nao muda (medido:
+# 41->40%). O que ajuda AQUI e a forca de mutacao 1.2->0.6: pesos driftam mais devagar -> a longo
+# prazo o peso medio fica menor -> menos saturacao. O lever principal e o response (ver acima).
 weight_init_type        = gaussian
 weight_init_mean        = 0.0
 weight_init_stdev       = 1.0
-weight_max_value        = 30
-weight_min_value        = -30
-weight_mutate_power     = 1.2
+weight_max_value        = 8
+weight_min_value        = -8
+weight_mutate_power     = 0.6
 weight_mutate_rate      = 0.9
 weight_replace_rate     = 0.1
 
