@@ -40,15 +40,15 @@ _TELEMETRY = os.path.join(os.path.dirname(__file__), "native_telemetry.csv")
 _TELEMETRY_ON = os.getenv("REGENES_TELEMETRY", "1") != "0"
 
 
-def _telemetry(idx: int, origin: str, nodes: int, conns: int) -> None:
+def _telemetry(idx: int, origin: str, nodes: int, conns: int, acuity: float) -> None:
     if not _TELEMETRY_ON:
         return
     try:
         new = not os.path.exists(_TELEMETRY)
         with open(_TELEMETRY, "a", encoding="ascii") as f:
             if new:
-                f.write("unix_time,idx,origin,nodes,conns\n")
-            f.write(f"{time.time():.0f},{idx},{origin},{nodes},{conns}\n")
+                f.write("unix_time,idx,origin,nodes,conns,acuity\n")
+            f.write(f"{time.time():.0f},{idx},{origin},{nodes},{conns},{acuity:.3f}\n")
     except OSError:
         pass  # telemetria nunca derruba o executor
 
@@ -68,20 +68,60 @@ def _ssl_ctx():
 
 SSL = _ssl_ctx()
 
+# FÍSICA DA PERCEPÇÃO — acuidade ∝ capacidade neural (ver docs/FISICA_DA_PERCEPCAO.md no world).
+# "Você enxerga na resolução que seu cérebro consegue processar." Cérebro pobre vê grosso
+# (binário, cone em blocões, sem predação); afina sozinho conforme a linhagem evolui complexidade.
+# É lei de embodiment (como cubo-quadrado/Kleiber), não currículo agendado. Calculada no cliente,
+# no nascimento (cérebro é fixo em vida), a partir do C do próprio genoma — sem reset, 161 intacto.
+ACUITY_K = 400.0     # meia-saturação: A = C/(C+K)
+ACUITY_LMAX = 16     # teto de níveis de intensidade (binário -> contínuo)
+ACUITY_BMIN = 3      # grão espacial mínimo do cone (de 31 células)
+ACUITY_APRED = 0.5   # acuidade que destrava os canais de predação
+_PRED_CH = (2, 3)    # canais gated: 2=inimigo, 3=perigo (predação). 0=obstáculo,1=cheiro,4=comida = sempre.
+
+
+def acuity_params(conns):
+    """C (conexões) -> (n_niveis_intensidade, n_bins_espaciais, ve_predacao, A). Fixo no nascimento."""
+    A = conns / (conns + ACUITY_K)
+    L = max(2, round(2 + A * A * (ACUITY_LMAX - 2)))            # A^2 segura no binário mais tempo
+    B = max(ACUITY_BMIN, min(31, round(ACUITY_BMIN + A * A * (31 - ACUITY_BMIN))))
+    return (L, B, A > ACUITY_APRED, A)
+
+
+def _pool31(row, B):
+    """31 células -> B blocos (média) -> reamostra de volta pros 31 slots (mantém num_inputs)."""
+    if B >= 31:
+        return list(row[:31])
+    out = [0.0] * 31
+    for k in range(31):
+        b = (k * B) // 31                    # bloco a que a célula k pertence
+        lo, hi = (b * 31) // B, ((b + 1) * 31) // B
+        seg = row[lo:hi] or [row[k]]
+        out[k] = sum(seg) / len(seg)
+    return out
+
+
+def _quantize(v, L):
+    """Valor em [0,1] -> um de L níveis (L=2 => binário; L grande => ~contínuo)."""
+    if L >= 256:
+        return v
+    return round(v * (L - 1)) / (L - 1)
+
+
 # Encoding do executor nativo (v3 EGOCÊNTRICO): 161 = bias + energy + stomach + endorfina
-# + MARCA-PASSO(sin,cos) + 5 canais x 31 células do CONE (frente-relativo). A visão já vem do
-# mundo como listas flat de 31 na ordem do cone; aqui é só concatenar. Marca-passo = relógio
-# interno (GENESIS_BIBLE §12); cone = visão pra frente (§13). Canal 0 (obstáculo) binarizado.
-def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos):
+# + MARCA-PASSO(sin,cos) + 5 canais x 31 células do CONE, filtrados pela ACUIDADE do cérebro.
+def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity):
     if not vision or len(vision) < 5 or len(vision[0]) < 31:
         return [0.0] * 161
+    L, B, see_pred = acuity[0], acuity[1], acuity[2]
     ss = stomach_size or 1.0
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos]
     for ch in range(5):
-        row = vision[ch]
-        for k in range(31):
-            v = row[k]
-            inp.append(1.0 if (ch == 0 and v > 0) else v)
+        if ch in _PRED_CH and not see_pred:
+            inp.extend([0.0] * 31)                       # canal de predação ainda escuro (invisível)
+            continue
+        pooled = _pool31(vision[ch], B)                  # resolução espacial (cone em blocões)
+        inp.extend(_quantize(v, L) for v in pooled)      # resolução de intensidade (binário->contínuo)
     return inp
 
 # índice -> comando de wire (bate com ACTION_SPEC do mundo, v3 egocêntrico: 7 ações)
@@ -128,11 +168,13 @@ async def run_one(idx: int):
                 # sem ele precisar decodificar o blob — respeita "cérebro opaco"). O mundo envolve
                 # com genealogia+assinatura e guarda.
                 nodes, conns = nb.complexity(g)
+                acuity = acuity_params(conns)   # (L, B, ve_predacao, A) — fixo em vida
                 await ws.send(json.dumps({"type": "brain", "brain": nb.pack(g),
-                                          "nodes": nodes, "conns": conns}))
+                                          "nodes": nodes, "conns": conns, "acuity": round(acuity[3], 3)}))
                 net = nb.build_net(g)
-                _telemetry(idx, origin, nodes, conns)
-                print(f"[{idx}] nasceu ({origin}) cerebro nos={nodes} lig={conns}")
+                _telemetry(idx, origin, nodes, conns, acuity[3])
+                print(f"[{idx}] nasceu ({origin}) nos={nodes} lig={conns} "
+                      f"acuidade={acuity[3]:.2f} (niveis={acuity[0]} bins={acuity[1]} predacao={acuity[2]})")
 
                 endo, last_e = 50.0, None
                 async for raw in ws:
@@ -154,7 +196,7 @@ async def run_one(idx: int):
                             endo -= 2.0
                         endo = max(0.0, min(100.0, endo))
                         out = net.activate(encode(msg.get("vision"), energy, stomach, stomach_size, endo,
-                                                  msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0)))
+                                                  msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity))
                         a = max(range(len(out)), key=lambda i: out[i])
                         await ws.send(json.dumps(ACTIONS[a]))
         except Exception as e:
