@@ -136,6 +136,29 @@ ACTIONS = [
 ]
 
 
+NULL_EPS = 0.05   # abaixo disto, a saída é ruído: o cérebro não disse nada
+
+
+def decide(out):
+    """Saídas do substrato -> índice da ação. MESMO contrato do client_native (§16.5).
+
+    1) SEM SINAL (tudo ~0) -> FICA. Nervo desconectado não dispara músculo. Isto importa MUITO
+       aqui: o LEO pode zerar o substrato inteiro, e o cérebro-zero estava CONQUISTANDO a
+       espécie (31 de 39 provados, mediana 0 conexões) — não por estratégia, mas porque o
+       argmax de [0,0,...] devolve o índice 0, que por acaso é "frente". Ganhava uma caminhada
+       reta de graça e não pagava imposto cerebral. Agora quem não tem cérebro não age.
+    2) EMPATE SATURADO -> sorteio uniforme (§14.5).
+    3) Gradiente -> argmax.
+    """
+    mx = max(out)
+    if max(abs(mx), abs(min(out))) < NULL_EPS:
+        return 4                                    # "stay": o cérebro não disse nada
+    near = [i for i in range(len(out)) if out[i] >= mx - 0.05]
+    if len(near) > 1 and mx >= 0.9:
+        return random.choice(near)
+    return max(range(len(out)), key=lambda i: out[i])
+
+
 async def run_one(idx: int):
     while True:
         try:
@@ -198,12 +221,7 @@ async def run_one(idx: int):
                         inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
                                      msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity)
                         out, hid = sub.activate(W_ih, W_ho, inp)
-                        # desempate por saturação: igual ao nativo (§14.5) — no empate saturado
-                        # o cérebro não distingue, então sorteia; senão respeita o gradiente.
-                        mx = max(out)
-                        near = [i for i in range(len(out)) if out[i] >= mx - 0.05]
-                        a = random.choice(near) if (len(near) > 1 and mx >= 0.9) \
-                            else max(range(len(out)), key=lambda i: out[i])
+                        a = decide(out)
                         await ws.send(json.dumps(ACTIONS[a]))
 
                         # VIZ DE CÉREBRO: mesmo contrato do nativo — se algum viewer observa

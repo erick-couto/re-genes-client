@@ -144,6 +144,32 @@ ACTIONS = [
 ]
 
 
+NULL_EPS = 0.05   # abaixo disto, a saída é ruído: o cérebro não disse nada
+
+
+def decide(out):
+    """Saídas da rede -> índice da ação. Três casos, e cada um tem uma razão física.
+
+    1) SEM SINAL (tudo ~0) -> FICA. Nervo desconectado não dispara músculo: sem comando motor,
+       o bicho não se mexe. Antes, um cérebro SEM conexões caía no argmax e ganhava "frente"
+       DE GRAÇA — só porque frente é o índice 0. Um passeio em linha reta de presente, dado
+       pela ORDEM em que as ações foram listadas. Era o mesmo viés-índice-0 que a gente já
+       tinha consertado pro empate saturado, escancarado no caso "tudo zero". Medido: o
+       cérebro-zero CONQUISTOU o HyperNEAT (31 de 39 provados, mediana 0 conexões) — não por
+       ser estratégia, mas por bug de desempate. Quem não paga por um cérebro não age.
+    2) EMPATE SATURADO (topo >=0.9 e várias coladas nele) -> sorteio uniforme. O cérebro grita
+       tudo ao mesmo tempo e genuinamente não distingue; escolher por índice seria viés.
+    3) Decisão graduada ou vencedor claro -> argmax, respeitando o gradiente.
+    """
+    mx = max(out)
+    if max(abs(mx), abs(min(out))) < NULL_EPS:
+        return 4                                    # "stay": o cérebro não disse nada
+    near = [i for i in range(len(out)) if out[i] >= mx - 0.05]
+    if len(near) > 1 and mx >= 0.9:
+        return random.choice(near)
+    return max(range(len(out)), key=lambda i: out[i])
+
+
 async def run_one(idx: int):
     while True:
         try:
@@ -208,16 +234,7 @@ async def run_one(idx: int):
                         inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
                                      msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity)
                         out = net.activate(inp)
-                        # DESEMPATE POR SATURAÇÃO: as saídas nunca batem EXATO (soma de pesos ->
-                        # gap mínimo ~1e-4), então empate exato nunca ocorria e o argmax pegava a
-                        # mesma ação todo tick, mesmo com 2+ ações coladas no teto (1.0). Aqui:
-                        # se o topo está SATURADO (max>=0.9) e há várias ações a <=0.05 dele, o
-                        # cérebro genuinamente não distingue -> sorteia UNIFORME entre elas (sem
-                        # viés). Decisão graduada (topo baixo, ou um vencedor claro) segue o argmax.
-                        mx = max(out)
-                        near = [i for i in range(len(out)) if out[i] >= mx - 0.05]
-                        a = random.choice(near) if (len(near) > 1 and mx >= 0.9) \
-                            else max(range(len(out)), key=lambda i: out[i])
+                        a = decide(out)
                         await ws.send(json.dumps(ACTIONS[a]))
 
                         # VIZ DE CÉREBRO: se algum viewer observa esta ameba, manda estrutura (1x) +
