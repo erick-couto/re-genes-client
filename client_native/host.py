@@ -208,13 +208,16 @@ async def run_one(idx: int):
                         inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
                                      msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity)
                         out = net.activate(inp)
-                        # DESEMPATE ALEATÓRIO: no empate (várias ações no topo, comum com tanh
-                        # saturado), NÃO pegar sempre o índice 0 (= "frente") -> isso viesava toda
-                        # decisão saturada pra frente. Escolhe aleatório entre as empatadas. Sem
-                        # empate, é determinístico (uma só no topo).
+                        # DESEMPATE POR SATURAÇÃO: as saídas nunca batem EXATO (soma de pesos ->
+                        # gap mínimo ~1e-4), então empate exato nunca ocorria e o argmax pegava a
+                        # mesma ação todo tick, mesmo com 2+ ações coladas no teto (1.0). Aqui:
+                        # se o topo está SATURADO (max>=0.9) e há várias ações a <=0.05 dele, o
+                        # cérebro genuinamente não distingue -> sorteia UNIFORME entre elas (sem
+                        # viés). Decisão graduada (topo baixo, ou um vencedor claro) segue o argmax.
                         mx = max(out)
-                        tied = [i for i in range(len(out)) if out[i] >= mx - 1e-6]
-                        a = tied[0] if len(tied) == 1 else random.choice(tied)
+                        near = [i for i in range(len(out)) if out[i] >= mx - 0.05]
+                        a = random.choice(near) if (len(near) > 1 and mx >= 0.9) \
+                            else max(range(len(out)), key=lambda i: out[i])
                         await ws.send(json.dumps(ACTIONS[a]))
 
                         # VIZ DE CÉREBRO: se algum viewer observa esta ameba, manda estrutura (1x) +
