@@ -45,11 +45,17 @@ compatibility_disjoint_coefficient = 1.0
 compatibility_weight_coefficient   = 0.5
 
 # Connection add/remove rates
-# ADD-ONLY (par natural do nascer magro): delecao = 0. Com nascer magro, a complexidade CRESCE
-# da estaca zero conforme a selecao premia; deletar so brigaria com esse crescimento. A poda e
-# responsabilidade da MORTE do genoma (selecao pura), nao do operador. Sem cascata, sem erosao.
+# PODA VOLTA A EXISTIR (v3.4) — e o motivo mudou. O add-only (delete=0) era CERTO quando o
+# cerebro era de GRACA: sem custo, deletar era deriva cega do operador, sem selecao pra guiar
+# (foi o driver da erosao 741->230). Agora o mundo COBRA pelo cerebro (GENESIS_BIBLE §15.3), e
+# podar deixou de ser deriva: virou RESPOSTA ECONOMICA a um preco real, guiada pela selecao.
+# E manter add-only agora seria, ele mesmo, uma regra imposta — obrigaria a linhagem a carregar
+# um custo do qual ela nao pode se livrar, enquanto o HyperNEAT (via LEO) escolhe seu tamanho
+# livremente. A mesma regua, aplicada as leis novas, manda reverter. node_delete SEGUE 0: a
+# cascata (apagar um oculto leva dezenas de ligacoes de uma vez) e cega demais; deletar conexao
+# a conexao e a resposta FINA que a selecao consegue guiar.
 conn_add_prob           = 0.4
-conn_delete_prob        = 0.0
+conn_delete_prob        = 0.1
 
 # Node response options
 # response ESCALA a soma antes do tanh: out = tanh(bias + response*Σ(w*x)). A saturacao (41%)
