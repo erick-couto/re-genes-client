@@ -176,6 +176,7 @@ async def run_one(idx: int):
                       f"substrato: {n_conns} sinapses | acuidade={acuity[3]:.2f}")
 
                 endo, last_e = 50.0, None
+                viz_sent = False   # já mandei a ESTRUTURA nesta sessão de observação?
                 async for raw in ws:
                     msg = json.loads(raw)
                     if msg.get("type") == "UPDATE":
@@ -196,7 +197,7 @@ async def run_one(idx: int):
                         endo = max(0.0, min(100.0, endo))
                         inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
                                      msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity)
-                        out = sub.activate(W_ih, W_ho, inp)
+                        out, hid = sub.activate(W_ih, W_ho, inp)
                         # desempate por saturação: igual ao nativo (§14.5) — no empate saturado
                         # o cérebro não distingue, então sorteia; senão respeita o gradiente.
                         mx = max(out)
@@ -204,6 +205,24 @@ async def run_one(idx: int):
                         a = random.choice(near) if (len(near) > 1 and mx >= 0.9) \
                             else max(range(len(out)), key=lambda i: out[i])
                         await ws.send(json.dumps(ACTIONS[a]))
+
+                        # VIZ DE CÉREBRO: mesmo contrato do nativo — se algum viewer observa
+                        # esta ameba, manda a estrutura (1x) + as ativações (todo tick). O
+                        # substrato é traduzido pro formato do viewer em sub.to_struct().
+                        if msg.get("viz"):
+                            act = {
+                                "inp": [round(x, 3) for x in inp],       # 161 entradas (borradas)
+                                "hid": sub.hidden_dict(hid),             # os 16 ocultos
+                                "out": [round(x, 3) for x in out],       # 7 saídas
+                                "win": a,                                # ação vencedora
+                            }
+                            payload = {"type": "brain_viz", "act": act}
+                            if not viz_sent:
+                                payload["struct"] = sub.to_struct(W_ih, W_ho)
+                                viz_sent = True
+                            await ws.send(json.dumps(payload))
+                        else:
+                            viz_sent = False   # parou de observar -> reenvia estrutura depois
         except Exception as e:
             print(f"[H{idx}] reconnect ({e.__class__.__name__}: {e})")
             await asyncio.sleep(1.0)

@@ -116,8 +116,45 @@ def express(cppn):
 
 
 def activate(W_ih, W_ho, inputs):
-    """Forward pass do substrato: 161 -> 16 (tanh) -> 7 (tanh)."""
+    """Forward pass do substrato: 161 -> 16 (tanh) -> 7 (tanh). Devolve (saidas, ocultos)."""
     hid = [math.tanh(sum(w * x for w, x in zip(W_ih[h], inputs) if w != 0.0))
            for h in range(N_HID)]
-    return [math.tanh(sum(W_ho[o][h] * hid[h] for h in range(N_HID) if W_ho[o][h] != 0.0))
-            for o in range(N_OUT)]
+    out = [math.tanh(sum(W_ho[o][h] * hid[h] for h in range(N_HID) if W_ho[o][h] != 0.0))
+           for o in range(N_OUT)]
+    return out, hid
+
+
+# --- VIZ: traduz o substrato pro formato que o viewer entende ---
+# O painel do viewer fala "genoma NEAT": conns = [in, out, peso, enabled], com saidas em 0..6,
+# entradas NEGATIVAS (-(i+1)) e ocultos com id >= 7. O substrato do HyperNEAT nao tem esses ids
+# (ele e uma grade de coordenadas), entao a gente sintetiza: oculto h -> id HIDDEN_ID_BASE+h.
+# Assim a MESMA tela serve as duas especies — e a diferenca de arquitetura aparece sozinha: o
+# NEAT (sem camada oculta) mostra "cheiro[12] -> acao" no PORQUE; o HyperNEAT mostra "oculto",
+# porque nele o que alimenta a acao SAO os ocultos. E honesto: e a arquitetura dele mesmo.
+HIDDEN_ID_BASE = N_OUT   # 7: os ids 0..6 sao as saidas
+
+
+def to_struct(W_ih, W_ho):
+    """Substrato -> dict no formato do viewer (mesmo contrato do neat_brain.to_dict)."""
+    nodes = {}
+    for o in range(N_OUT):
+        nodes[str(o)] = [0.0, 1.0, "tanh", "sum"]
+    for h in range(N_HID):
+        nodes[str(HIDDEN_ID_BASE + h)] = [0.0, 1.0, "tanh", "sum"]
+    conns = []
+    for h in range(N_HID):
+        for i in range(N_IN):
+            w = W_ih[h][i]
+            if w != 0.0:
+                conns.append([-(i + 1), HIDDEN_ID_BASE + h, round(w, 3), True, 0])
+    for o in range(N_OUT):
+        for h in range(N_HID):
+            w = W_ho[o][h]
+            if w != 0.0:
+                conns.append([HIDDEN_ID_BASE + h, o, round(w, 3), True, 0])
+    return {"key": 0, "nodes": nodes, "conns": conns}
+
+
+def hidden_dict(hid):
+    """Ocultos -> {id: valor} (o viewer le por id de no)."""
+    return {str(HIDDEN_ID_BASE + h): round(v, 3) for h, v in enumerate(hid)}
