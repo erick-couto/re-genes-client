@@ -1,0 +1,107 @@
+[NEAT]
+fitness_criterion     = max
+fitness_threshold     = 100000
+pop_size              = 50
+reset_on_extinction   = False
+no_fitness_termination = False
+
+[DefaultGenome]
+# ---------------------------------------------------------------------------------------
+# CONFIG DO CPPN (HyperNEAT). ATENCAO: este NAO e o cerebro da ameba — e a FUNCAO que PINTA
+# o cerebro. Entradas = coordenadas de dois neuronios; saidas = os pesos entre eles.
+# O cerebro (substrato 161->16->7) e expresso a partir daqui em substrate.express().
+# NOTA: comentarios ASCII puro (parser cp1252 quebra com acento).
+# ---------------------------------------------------------------------------------------
+
+# ATIVACOES: o conjunto CLASSICO de CPPN (Stanley 2007). E o coracao da coisa:
+#   gauss    -> simetria / "perto de zero" (localidade)
+#   sin      -> repeticao / padroes periodicos
+#   abs      -> simetria em espelho (esquerda/direita!)
+#   sigmoid/tanh/identity -> gradientes suaves
+# E dessas primitivas que saem regras geometricas tipo "espelhe a resposta no eixo lateral" —
+# exatamente o que a quimiotaxia precisa (comida a esq -> vira esq; a dir -> vira dir).
+feed_forward            = True
+activation_default      = tanh
+activation_mutate_rate  = 0.3
+activation_options      = tanh sigmoid gauss sin abs identity
+
+# Structural mutation
+single_structural_mutation = False
+structural_mutation_surer  = default
+# CPPN nasce PEQUENO mas CONECTADO: ele e a receita, nao a rede. Um CPPN desconectado nao
+# pinta nada (rede morta). full_direct = 7x2 = 14 conexoes de largada. Ele cresce por node_add.
+initial_connection         = full_direct
+
+aggregation_default     = sum
+aggregation_mutate_rate = 0.0
+aggregation_options     = sum
+
+bias_init_type          = gaussian
+bias_init_mean          = 0.0
+bias_init_stdev         = 1.0
+bias_max_value          = 5.0
+bias_min_value          = -5.0
+bias_mutate_power       = 0.5
+bias_mutate_rate        = 0.7
+bias_replace_rate       = 0.1
+
+compatibility_disjoint_coefficient = 1.0
+compatibility_weight_coefficient   = 0.5
+
+# CPPN e pequeno: pode crescer/podar mais livremente que o cerebro direto. Aqui a poda NAO e
+# erosao (nao apaga "memoria" da ameba) — e busca no espaco de funcoes.
+conn_add_prob           = 0.5
+conn_delete_prob        = 0.1
+
+response_init_type      = gaussian
+response_init_mean      = 1.0
+response_init_stdev     = 0.0
+response_max_value      = 30.0
+response_min_value      = -30.0
+response_mutate_power   = 0.0
+response_mutate_rate    = 0.0
+response_replace_rate   = 0.0
+
+enabled_default         = True
+enabled_mutate_rate     = 0.01
+enabled_rate_to_true_add = 0.0
+enabled_rate_to_false_add = 0.0
+
+# Pesos do CPPN podem ser fortes: e uma funcao, precisa de amplitude pra fazer curva.
+weight_init_type        = gaussian
+weight_init_mean        = 0.0
+weight_init_stdev       = 1.0
+weight_max_value        = 5.0
+weight_min_value        = -5.0
+weight_mutate_power     = 0.5
+weight_mutate_rate      = 0.8
+weight_replace_rate     = 0.1
+
+node_add_prob           = 0.3
+node_delete_prob        = 0.1
+
+# ENTRADAS (7): x1,y1,z1, x2,y2,z2, distancia.
+#   As coordenadas dos DOIS neuronios + a distancia entre eles. A distancia entra explicita
+#   porque e o que permite expressar LOCALIDADE sem ter que derivar a raiz quadrada sozinho.
+# SAIDAS (3): w_entrada->oculto, w_oculto->saida, LEO.
+#   LEO (Link Expression Output; Verbancsics & Stanley 2011): decide SE a conexao existe
+#   (leo>0 = existe). Sem ele o substrato nasce ~95% denso e FIXO -> 2556 sinapses, que com o
+#   custo de cerebro (§15.3) matam a ameba em ~95 ticks. Com LEO a ESPARSIDADE e EVOLUIVEL: o
+#   proprio CPPN escolhe quanto cerebro vale a pena carregar. E o que torna a arena honesta —
+#   cada paradigma decide seu tamanho e paga por ele.
+num_hidden              = 0
+num_inputs              = 7
+num_outputs             = 3
+
+[DefaultSpeciesSet]
+compatibility_threshold = 3.0
+
+[DefaultStagnation]
+species_fitness_func = max
+max_stagnation       = 20
+species_elitism      = 0
+
+[DefaultReproduction]
+elitism            = 2
+survival_threshold = 0.2
+min_species_size   = 1
