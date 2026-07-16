@@ -208,7 +208,13 @@ async def run_one(idx: int):
                         inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
                                      msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity)
                         out = net.activate(inp)
-                        a = max(range(len(out)), key=lambda i: out[i])
+                        # DESEMPATE ALEATÓRIO: no empate (várias ações no topo, comum com tanh
+                        # saturado), NÃO pegar sempre o índice 0 (= "frente") -> isso viesava toda
+                        # decisão saturada pra frente. Escolhe aleatório entre as empatadas. Sem
+                        # empate, é determinístico (uma só no topo).
+                        mx = max(out)
+                        tied = [i for i in range(len(out)) if out[i] >= mx - 1e-6]
+                        a = tied[0] if len(tied) == 1 else random.choice(tied)
                         await ws.send(json.dumps(ACTIONS[a]))
 
                         # VIZ DE CÉREBRO: se algum viewer observa esta ameba, manda estrutura (1x) +
