@@ -45,7 +45,24 @@ BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")
 URL = (BASE.rstrip("/") + "/ws/join?species=HyperNEAT&paradigm=hyperneat_cppn"
        "&wants_brain=1&self_learns=0" + (f"&operator={OP}" if OP else ""))
-SSL = ssl.create_default_context() if BASE.startswith("wss") else None
+
+
+def _ssl_ctx():
+    """SSL só p/ wss. Tolera o MITM do Avast (VERIFY_X509_STRICT); REGENES_INSECURE_TLS=1 desliga tudo.
+    Idêntico ao do client_native — antivírus que intercepta TLS apresenta um certificado PRÓPRIO
+    (às vezes vencido/stale), e é ELE que o Python reprova, não o cert real do servidor."""
+    if not URL.startswith("wss"):
+        return None
+    ctx = ssl.create_default_context()
+    if os.getenv("REGENES_INSECURE_TLS") == "1":
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    else:
+        ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return ctx
+
+
+SSL = _ssl_ctx()
 
 _CPPN_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config-cppn")
 
