@@ -23,6 +23,7 @@ import types
 from random import choice
 
 import neat
+from neat.graphs import creates_cycle
 from neat.genes import DefaultNodeGene, DefaultConnectionGene
 from neat.innovation import InnovationTracker
 
@@ -103,6 +104,68 @@ def _det_mutate_add_node(self, config):
     self.add_connection(config, new_node_id, o, conn_to_split.weight, True, innovation=out_innov)
 
 
+# --- CROSSOVER SIMETRICO: a clausula do FITNESS IGUAL que o neat-python nao implementa ---
+# Stanley & Miikkulainen (2002), p.108: "Genes are randomly chosen from either parent at matching
+# genes, whereas all excess or disjoint genes are always included from the more fit parent." E,
+# logo em seguida: "in the case of EQUAL fitness, disjoint and excess genes are inherited RANDOMLY."
+#
+# A biblioteca so implementa a PRIMEIRA frase:
+#     if genome1.fitness > genome2.fitness: parent1, parent2 = genome1, genome2
+#     else:                                 parent1, parent2 = genome2, genome1
+#     ...
+#     # Note: genes only in parent2 (less fit) are not inherited
+# O EMPATE cai no `else` e vira "g2 e o mais apto": os genes exclusivos de g1 sao DESCARTADOS em
+# silencio. Nao e bug da lib — e a clausula que falta.
+#
+# E o nosso mundo IGUALA o fitness de proposito (a selecao e do MUNDO, nao do executor), entao
+# TODO acasalamento caia nesse caso. Com 100% de reproducao sexuada (medido: 58/58), cada
+# nascimento jogava fora os genes exclusivos de um dos pais. Foi a EROSAO que perseguimos a
+# sessao inteira (741->36, 113->27, 113->15): nao era node_delete (removido), nao era a
+# numeracao de inovacao (consertada) — era isto. Medido: filho ficava 100% igual a um pai e 0%
+# ao outro, e 35% dos filhos nasciam com menos conns que o pai mais magro.
+def _sym_configure_crossover(self, genome1, genome2, config):
+    empate = abs((genome1.fitness or 0.0) - (genome2.fitness or 0.0)) < 1e-9
+    if genome1.fitness > genome2.fitness:
+        parent1, parent2 = genome1, genome2
+    else:
+        parent1, parent2 = genome2, genome1
+
+    p1 = {cg.innovation: cg for cg in parent1.connections.values()}
+    p2 = {cg.innovation: cg for cg in parent2.connections.values()}
+
+    for inn in set(p1) | set(p2):
+        cg1, cg2 = p1.get(inn), p2.get(inn)
+        if cg1 is not None and cg2 is not None:
+            # homologo: sorteia dos dois (ja era assim). Colisao de inovacao -> trata como disjunto.
+            gene = cg1.copy() if cg1.key != cg2.key else cg1.crossover(cg2)
+        elif cg1 is not None:
+            gene = cg1.copy()                 # disjunto do mais apto: sempre entra
+        else:
+            # disjunto do MENOS apto. Canonico: so entra se houver EMPATE, e ai por SORTEIO.
+            # Sem isto, este gene morria SEMPRE — que era exatamente a erosao.
+            if not (empate and choice([True, False])):
+                continue
+            gene = cg2.copy()
+        if config.feed_forward and creates_cycle(list(self.connections), gene.key):
+            continue
+        self.connections[gene.key] = gene
+
+    for key, ng1 in parent1.nodes.items():
+        ng2 = parent2.nodes.get(key)
+        self.nodes[key] = ng1.copy() if ng2 is None else ng1.crossover(ng2)
+
+    # nos exigidos pelas conexoes herdadas do outro pai (senao o genoma nasce quebrado:
+    # conexao apontando pra neuronio inexistente)
+    for (i, o) in list(self.connections):
+        for k in (i, o):
+            if k not in self.nodes and k in parent2.nodes:
+                self.nodes[k] = parent2.nodes[k].copy()
+
+
+def _install_symmetric_crossover(cfg) -> None:
+    neat.DefaultGenome.configure_crossover = _sym_configure_crossover
+
+
 def _install_deterministic_identity(cfg: neat.Config) -> None:
     """Instala a identidade estrutural deterministica no config (tracker + id de no semeado + add_node)."""
     gc = cfg.genome_config
@@ -131,6 +194,7 @@ def load_config(path: str = None) -> neat.Config:
         # tracker por-processo do fork -> genomas de qualquer processo/maquina/restart alinham
         # no crossover. Ver bloco no topo do modulo.
         _install_deterministic_identity(_CONFIG)
+        _install_symmetric_crossover(_CONFIG)   # clausula do fitness igual (Stanley p.108)
     return _CONFIG
 
 

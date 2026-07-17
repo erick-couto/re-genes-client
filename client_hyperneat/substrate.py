@@ -115,12 +115,38 @@ def express(cppn):
     return W_ih, W_ho, n
 
 
+def _fire(pares):
+    """Um neurônio: soma as entradas ATIVAS e dispara — com ESCALONAMENTO HOMEOSTÁTICO.
+
+    A soma é dividida por sqrt(nº de sinapses) antes do tanh. Sem isso o substrato satura POR
+    CONSTRUÇÃO: cada oculto recebe ~60 sinapses de peso até ±3, a soma dá ~10, e tanh(10)=1.0.
+    Medido: os cérebros saturavam 5 das 7 saídas em 1.0 ao mesmo tempo — e um cérebro que grita
+    tudo junto não está decidindo nada, é indistinguível de ruído. Pior: o desempate então
+    sorteava entre as 5, e como só 2 das 7 ações deslocam, o bicho ficava parado 64% do tempo.
+    A evolução ainda PIORAVA isso (empate 3.8 no primordial -> 5.0 no provado): saturar é barato,
+    poucos fios com peso alto bastam, e o imposto cerebral (§15.3) premia poucos fios.
+
+    Normalizar pelo fan-in é biologia, não truque numérico: neurônios reais fazem escalonamento
+    sináptico homeostático — ajustam o ganho total pra manter a taxa de disparo em faixa útil,
+    não importa quantas sinapses tenham (Turrigiano & Nelson, 2004). Um neurônio com mil entradas
+    não soma tudo cru; ele se normaliza. É o análogo do `response_init 1.0->0.5` que consertou a
+    saturação do NEAT direto.
+    """
+    soma = 0.0
+    n = 0
+    for w, x in pares:
+        if w != 0.0:
+            soma += w * x
+            n += 1
+    if n == 0:
+        return 0.0
+    return math.tanh(soma / math.sqrt(n))
+
+
 def activate(W_ih, W_ho, inputs):
     """Forward pass do substrato: 161 -> 16 (tanh) -> 7 (tanh). Devolve (saidas, ocultos)."""
-    hid = [math.tanh(sum(w * x for w, x in zip(W_ih[h], inputs) if w != 0.0))
-           for h in range(N_HID)]
-    out = [math.tanh(sum(W_ho[o][h] * hid[h] for h in range(N_HID) if W_ho[o][h] != 0.0))
-           for o in range(N_OUT)]
+    hid = [_fire(zip(W_ih[h], inputs)) for h in range(N_HID)]
+    out = [_fire((W_ho[o][h], hid[h]) for h in range(N_HID)) for o in range(N_OUT)]
     return out, hid
 
 
