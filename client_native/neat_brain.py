@@ -247,6 +247,36 @@ def complexity(genome):
     return (len(genome.nodes), active)
 
 
+def functional_complexity(genome):
+    """(n_neuronios, n_ligacoes) FUNCIONAIS — o cérebro de verdade, não o genoma.
+
+    Mesmo critério do FeedForwardNetwork.create (neat.graphs.required_for_output): um nó só
+    computa se tem caminho até uma SAÍDA por conexões HABILITADAS. O resto é material morto
+    (split de conexão desligada, toggle do enabled_mutate, órfãos de crossover) — existe no
+    genoma, é carregado e copiado, mas não pensa. Medido em produção (07/2026): 99% dos nós
+    ocultos do brain_bank eram mortos; a telemetria de `complexity` lia "cérebro crescendo"
+    (21->414 nós) quando o funcional ficou em ~6-14 ligações. Desde então a telemetria e o
+    mundo reportam as DUAS medidas: genoma (custa DNA, §21) e cérebro real (observabilidade).
+    """
+    cfg = load_config()
+    outputs = set(cfg.genome_config.output_keys)
+    adj = {}
+    for (i, o), cg in genome.connections.items():
+        if cg.enabled:
+            adj.setdefault(o, []).append(i)
+    reach = set(outputs)
+    stack = list(outputs)
+    while stack:
+        cur = stack.pop()
+        for src in adj.get(cur, ()):
+            if src not in reach:
+                reach.add(src)
+                stack.append(src)
+    fnodes = len(set(genome.nodes) & reach)
+    fconns = sum(1 for (i, o), cg in genome.connections.items() if cg.enabled and o in reach)
+    return (fnodes, fconns)
+
+
 # --- SERIALIZAÇÃO: genoma <-> dict JSON (o "pacote" que trafega pro mundo) ---
 
 def to_dict(genome) -> dict:

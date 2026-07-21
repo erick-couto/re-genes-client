@@ -37,19 +37,25 @@ URL = (BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_
 # TELEMETRIA LOCAL de complexidade do cérebro (a produção só guarda sumários; isto dá a curva
 # na hora, sem depender de deploy do mundo). 1 linha por nascimento. Append síncrono é seguro no
 # asyncio single-thread (sem await no meio). Desligar com REGENES_TELEMETRY=0.
-_TELEMETRY = os.path.join(os.path.dirname(__file__), "native_telemetry.csv")
+_TELEMETRY = os.path.join(os.path.dirname(__file__), "native_telemetry_v2.csv")
 _TELEMETRY_ON = os.getenv("REGENES_TELEMETRY", "1") != "0"
 
 
-def _telemetry(idx: int, origin: str, nodes: int, conns: int, acuity: float) -> None:
+def _telemetry(idx: int, origin: str, nodes: int, conns: int,
+               fnodes: int, fconns: int, genes: int, acuity: float) -> None:
+    # v2 (07/2026): fnodes/fconns = CÉREBRO REAL (sub-rede funcional, alcança as saídas);
+    # genes = tamanho total do genoma (o que o §21 cobra). A série v1 (nodes/conns = genoma)
+    # ficou em native_telemetry.csv — 148k linhas com header de 6 colunas; misturar formatos
+    # no mesmo arquivo quebraria o DictReader, então a v2 nasce em arquivo novo.
     if not _TELEMETRY_ON:
         return
     try:
         new = not os.path.exists(_TELEMETRY)
         with open(_TELEMETRY, "a", encoding="ascii") as f:
             if new:
-                f.write("unix_time,idx,origin,nodes,conns,acuity\n")
-            f.write(f"{time.time():.0f},{idx},{origin},{nodes},{conns},{acuity:.3f}\n")
+                f.write("unix_time,idx,origin,nodes,conns,fnodes,fconns,genes,acuity\n")
+            f.write(f"{time.time():.0f},{idx},{origin},{nodes},{conns},"
+                    f"{fnodes},{fconns},{genes},{acuity:.3f}\n")
     except OSError:
         pass  # telemetria nunca derruba o executor
 
@@ -201,13 +207,21 @@ async def run_one(idx: int):
                 # reporta o GENOMA final (compactado) + complexidade (telemetria pro mundo logar,
                 # sem ele precisar decodificar o blob — respeita "cérebro opaco"). O mundo envolve
                 # com genealogia+assinatura e guarda.
+                # nodes/conns = genoma (total / habilitadas): dirigem a ACUIDADE e o custo §15.3.
+                # fnodes/fconns = CÉREBRO REAL (funcional): observabilidade. genes = tamanho total
+                # do genoma (nós+conexões, incl. mortas): é o que o custo de DNA cobra (§21).
                 nodes, conns = nb.complexity(g)
+                fnodes, fconns = nb.functional_complexity(g)
+                genes = len(g.nodes) + len(g.connections)
                 acuity = acuity_params(conns)   # (L, B, ve_predacao, A) — fixo em vida
                 await ws.send(json.dumps({"type": "brain", "brain": nb.pack(g),
-                                          "nodes": nodes, "conns": conns, "acuity": round(acuity[3], 3)}))
+                                          "nodes": nodes, "conns": conns,
+                                          "fnodes": fnodes, "fconns": fconns, "genes": genes,
+                                          "acuity": round(acuity[3], 3)}))
                 net = nb.build_net(g)
-                _telemetry(idx, origin, nodes, conns, acuity[3])
+                _telemetry(idx, origin, nodes, conns, fnodes, fconns, genes, acuity[3])
                 print(f"[{idx}] nasceu ({origin}) nos={nodes} lig={conns} "
+                      f"real={fnodes}/{fconns} genes={genes} "
                       f"acuidade={acuity[3]:.2f} (niveis={acuity[0]} bins={acuity[1]} predacao={acuity[2]})")
 
                 endo, last_e = 50.0, None
