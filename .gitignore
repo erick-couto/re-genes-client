@@ -17,3 +17,4 @@ es_theta*.npy
 neat-checkpoint-*
 NEAT_HALL_OF_FAME.md
 qtable_memoriam_v2*.json
+*_telemetry_v2.csv

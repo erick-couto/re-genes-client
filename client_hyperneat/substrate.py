@@ -3,7 +3,7 @@ substrate.py — o CORPO GEOMÉTRICO do cérebro HyperNEAT.
 
 A diferença central pro NEAT direto: aqui o cérebro SABE onde cada sensor mora.
 
-No NEAT direto, as 161 entradas são independentes e sem relação entre si — pra evoluir
+No NEAT direto, as 192 entradas são independentes e sem relação entre si — pra evoluir
 "comida à esquerda -> vira esquerda" a evolução precisa sortear ~31 fios caindo cada um na
 ação certa com o sinal certo (medido no genoma real: comida->frente tem 3 fios, com 33 pesos
 positivos e 44 NEGATIVOS — se anulam, efeito líquido ~0).
@@ -32,21 +32,22 @@ def _build_cone():
     return cells
 CONE_OFFSETS = _build_cone()               # 31 células, mesma ORDEM do mundo
 
-# canal -> profundidade z. Separa as 5 modalidades em "camadas" do hipercubo, então o CPPN
+# canal -> profundidade z. Separa as 6 modalidades em "camadas" do hipercubo, então o CPPN
 # pode tratar cheiro e obstáculo com regras diferentes (ou iguais, se a seleção preferir).
-CHANNEL_Z = [-1.0, -0.5, 0.0, 0.5, 1.0]    # obstáculo, cheiro, inimigo, perigo, comida
+# §23: sangue (memória de violência) ganha a camada z=+1.0 — contato/consequência.
+CHANNEL_Z = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]    # obstáculo, cheiro, inimigo, perigo, comida, sangue
 
-# --- ENTRADAS (161, na MESMA ordem do encode do host) ---
+# --- ENTRADAS (192, na MESMA ordem do encode do host) ---
 INPUT_COORDS = []
 # 6 escalares (bias, energia, estômago, endorfina, pace_sin, pace_cos): interocepção, não têm
 # lugar no cone -> ficam numa fileira ATRÁS do corpo (y=-1.2), fora do campo visual.
 for i in range(6):
     INPUT_COORDS.append((-1.0 + 2.0 * i / 5.0, -1.2, 0.0))
-# 5 canais x 31 células do cone: x = lateral (esq<0, dir>0), y = distância à frente
-for ch in range(5):
+# 6 canais x 31 células do cone: x = lateral (esq<0, dir>0), y = distância à frente
+for ch in range(6):
     for (f, l) in CONE_OFFSETS:
         INPUT_COORDS.append((l / 3.0, f / 6.0, CHANNEL_Z[ch]))
-assert len(INPUT_COORDS) == 161, len(INPUT_COORDS)
+assert len(INPUT_COORDS) == 192, len(INPUT_COORDS)
 
 # --- SAÍDAS (7): posicionadas pelo SIGNIFICADO DIRECIONAL da ação ---
 # É isto que deixa a regra geométrica existir: "vira-esq" mora à esquerda (x=-1), então o CPPN
@@ -144,7 +145,7 @@ def _fire(pares):
 
 
 def activate(W_ih, W_ho, inputs):
-    """Forward pass do substrato: 161 -> 16 (tanh) -> 7 (tanh). Devolve (saidas, ocultos)."""
+    """Forward pass do substrato: 192 -> 16 (tanh) -> 7 (tanh). Devolve (saidas, ocultos)."""
     hid = [_fire(zip(W_ih[h], inputs)) for h in range(N_HID)]
     out = [_fire((W_ho[o][h], hid[h]) for h in range(N_HID)) for o in range(N_OUT)]
     return out, hid

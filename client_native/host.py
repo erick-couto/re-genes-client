@@ -126,12 +126,14 @@ def _blur(row, kernel, r):
 # Encoding v3 EGOCÊNTRICO: 161 = bias + energy + stomach + endorfina + MARCA-PASSO(sin,cos)
 # + 5 canais x 31 do CONE, BORRADOS pela acuidade do cérebro (desfoque contínuo; predação em fade).
 def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity):
-    if not vision or len(vision) < 5 or len(vision[0]) < 31:
-        return [0.0] * 161
+    if not vision or len(vision) < 6 or len(vision[0]) < 31:
+        return [0.0] * 192
     kernel, r, pred_w = acuity[0], acuity[1], acuity[2]
     ss = stomach_size or 1.0
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos]
-    for ch in range(5):
+    # §23: 6º canal (sangue) entra como o cheiro — traço QUÍMICO, legível por qualquer cérebro;
+    # NÃO entra no _PRED_CH (o fade de acuidade é pra avaliação de AMEAÇA, não pra ler mancha).
+    for ch in range(6):
         blurred = _blur(vision[ch], kernel, r)
         if ch in _PRED_CH and pred_w < 1.0:
             blurred = [v * pred_w for v in blurred]      # predação em fade-in contínuo
@@ -256,7 +258,7 @@ async def run_one(idx: int):
                         # o activate — de graça. O mundo só relaya. Sem observador, não custa nada.
                         if msg.get("viz"):
                             act = {
-                                "inp": [round(x, 3) for x in inp],                       # 161 entradas (já borradas)
+                                "inp": [round(x, 3) for x in inp],                       # 192 entradas (já borradas)
                                 "hid": {str(n): round(net.values.get(n, 0.0), 3)         # ocultos
                                         for n in g.nodes if n not in out_keys},
                                 "out": [round(x, 3) for x in out],                       # 7 saídas

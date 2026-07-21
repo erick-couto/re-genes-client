@@ -8,7 +8,7 @@ INDIRETO: o genoma não é a rede — é um CPPN que PINTA a rede a partir da ge
      isolamento reprodutivo, §15: espécies não cruzam);
   2. cruza + muta o CPPN (reusa a maquinaria de genoma do client_native, inclusive a
      identidade determinística — o CPPN é, ele mesmo, um genoma NEAT);
-  3. EXPRESSA: consulta o CPPN em cada par de coordenadas -> substrato 161->16->7;
+  3. EXPRESSA: consulta o CPPN em cada par de coordenadas -> substrato 192->16->7;
   4. roda o forward pass do substrato a cada tick;
   5. ao morrer, reconecta -> nova ameba.
 
@@ -110,14 +110,15 @@ def _blur(row, kernel, r):
 
 
 def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity):
-    """IDÊNTICO ao do nativo — mesma ordem das 161 entradas. Tem que ser: o substrato mapeia
+    """IDÊNTICO ao do nativo — mesma ordem das 192 entradas. Tem que ser: o substrato mapeia
     coordenada por ÍNDICE (substrate.INPUT_COORDS segue esta mesma ordem)."""
-    if not vision or len(vision) < 5 or len(vision[0]) < 31:
-        return [0.0] * 161
+    if not vision or len(vision) < 6 or len(vision[0]) < 31:
+        return [0.0] * 192
     kernel, r, pred_w = acuity[0], acuity[1], acuity[2]
     ss = stomach_size or 1.0
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos]
-    for ch in range(5):
+    # §23: 6º canal (sangue) como o cheiro — traço químico, fora do fade de predação (_PRED_CH).
+    for ch in range(6):
         blurred = _blur(vision[ch], kernel, r)
         if ch in _PRED_CH and pred_w < 1.0:
             blurred = [v * pred_w for v in blurred]
@@ -229,7 +230,7 @@ async def run_one(idx: int):
                         # substrato é traduzido pro formato do viewer em sub.to_struct().
                         if msg.get("viz"):
                             act = {
-                                "inp": [round(x, 3) for x in inp],       # 161 entradas (borradas)
+                                "inp": [round(x, 3) for x in inp],       # 192 entradas (borradas)
                                 "hid": sub.hidden_dict(hid),             # os 16 ocultos
                                 "out": [round(x, 3) for x in out],       # 7 saídas
                                 "win": a,                                # ação vencedora
