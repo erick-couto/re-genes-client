@@ -209,13 +209,15 @@ async def run_one(idx: int):
                 # reporta o GENOMA final (compactado) + complexidade (telemetria pro mundo logar,
                 # sem ele precisar decodificar o blob — respeita "cérebro opaco"). O mundo envolve
                 # com genealogia+assinatura e guarda.
-                # nodes/conns = genoma (total / habilitadas): dirigem a ACUIDADE e o custo §15.3.
-                # fnodes/fconns = CÉREBRO REAL (funcional): observabilidade. genes = tamanho total
-                # do genoma (nós+conexões, incl. mortas): é o que o custo de DNA cobra (§21).
+                # nodes/conns = genoma (total / habilitadas): custo §15.3. genes = §21.
+                # fnodes/fconns = CÉREBRO REAL (funcional): observabilidade + ACUIDADE (§24 #5):
+                # antes a acuidade era alimentada pelas habilitadas — 97,5% tecido morto ligando
+                # a visão de graça. Agora só o que computa enxerga. Num genoma sadio fconns≈conns
+                # (nascer magro é 100% funcional), então a escala não muda — só para de mentir.
                 nodes, conns = nb.complexity(g)
                 fnodes, fconns = nb.functional_complexity(g)
                 genes = len(g.nodes) + len(g.connections)
-                acuity = acuity_params(conns)   # (L, B, ve_predacao, A) — fixo em vida
+                acuity = acuity_params(fconns)   # (L, B, ve_predacao, A) — fixo em vida
                 await ws.send(json.dumps({"type": "brain", "brain": nb.pack(g),
                                           "nodes": nodes, "conns": conns,
                                           "fnodes": fnodes, "fconns": fconns, "genes": genes,

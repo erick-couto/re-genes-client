@@ -188,6 +188,11 @@ async def run_one(idx: int):
                 cppn = nb.build_net(g)
                 W_ih, W_ho, n_conns = sub.express(cppn)
                 cppn_nodes, cppn_conns = nb.complexity(g)
+                # §24 #4: o funcional do CPPN com a MESMA régua do nativo (o config memoizado
+                # neste processo é o do CPPN — saídas = pesos + LEO). genes = genoma do CPPN
+                # (o "DNA" que o §21 cobra): até aqui o HyperNEAT não reportava e pagava ZERO.
+                fnodes, fconns = nb.functional_complexity(g)
+                genes = cppn_nodes + cppn_conns
                 acuity = acuity_params(n_conns)
 
                 # Reporta o CPPN (o genoma) como blob opaco. nodes/conns = do SUBSTRATO (a rede
@@ -195,8 +200,9 @@ async def run_one(idx: int):
                 await ws.send(json.dumps({
                     "type": "brain", "brain": nb.pack(g),
                     "nodes": sub.N_IN + sub.N_HID + sub.N_OUT, "conns": n_conns,
+                    "fnodes": fnodes, "fconns": fconns, "genes": genes,
                     "acuity": round(acuity[3], 3)}))
-                print(f"[H{idx}] nasceu ({origin}) cppn: {cppn_nodes}n/{cppn_conns}c -> "
+                print(f"[H{idx}] nasceu ({origin}) cppn: {cppn_nodes}n/{cppn_conns}c (real {fnodes}/{fconns}, {genes} genes) -> "
                       f"substrato: {n_conns} sinapses | acuidade={acuity[3]:.2f}")
 
                 endo, last_e = 50.0, None

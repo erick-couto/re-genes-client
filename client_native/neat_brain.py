@@ -150,16 +150,26 @@ def _sym_configure_crossover(self, genome1, genome2, config):
             continue
         self.connections[gene.key] = gene
 
-    for key, ng1 in parent1.nodes.items():
-        ng2 = parent2.nodes.get(key)
-        self.nodes[key] = ng1.copy() if ng2 is None else ng1.crossover(ng2)
-
-    # nos exigidos pelas conexoes herdadas do outro pai (senao o genoma nasce quebrado:
-    # conexao apontando pra neuronio inexistente)
-    for (i, o) in list(self.connections):
-        for k in (i, o):
-            if k not in self.nodes and k in parent2.nodes:
-                self.nodes[k] = parent2.nodes[k].copy()
+    # §24 (fix #3): herança de nó SEGUE A CONEXÃO. Antes isto copiava TODOS os nós do pai1
+    # + os exigidos pelo pai2 — ou seja, nodes(filho) ⊇ nodes(pai1), sempre: uma catraca
+    # monotônica que convergia pra união (pan-genoma) da população. Medido em produção:
+    # 86% do inchaço vinha daqui (a mutação explica 14%). Um nó sem conexão herdada não
+    # computa nada (o runtime o ignora) — copiar ele era só frete de lixo. Conexões
+    # DESABILITADAS herdadas continuam trazendo seus nós: são a rede neutra (Wagner),
+    # reativáveis em 1 mutação. Nó órfão não é rede neutra; é entulho.
+    needed = set(range(config.num_outputs))  # saídas sempre existem (build_net exige a chave)
+    for (i, o) in self.connections:
+        needed.add(i); needed.add(o)
+    for key in needed:
+        if key < 0:
+            continue                      # inputs (ids negativos) não vivem em genome.nodes
+        ng1, ng2 = parent1.nodes.get(key), parent2.nodes.get(key)
+        if ng1 is not None and ng2 is not None:
+            self.nodes[key] = ng1.crossover(ng2)
+        elif ng1 is not None:
+            self.nodes[key] = ng1.copy()
+        elif ng2 is not None:
+            self.nodes[key] = ng2.copy()
 
 
 def _install_symmetric_crossover(cfg) -> None:
@@ -247,7 +257,7 @@ def complexity(genome):
     return (len(genome.nodes), active)
 
 
-def functional_complexity(genome):
+def functional_complexity(genome, output_keys=None):
     """(n_neuronios, n_ligacoes) FUNCIONAIS — o cérebro de verdade, não o genoma.
 
     Mesmo critério do FeedForwardNetwork.create (neat.graphs.required_for_output): um nó só
@@ -257,9 +267,14 @@ def functional_complexity(genome):
     ocultos do brain_bank eram mortos; a telemetria de `complexity` lia "cérebro crescendo"
     (21->414 nós) quando o funcional ficou em ~6-14 ligações. Desde então a telemetria e o
     mundo reportam as DUAS medidas: genoma (custa DNA, §21) e cérebro real (observabilidade).
+    output_keys: saídas do genoma (default = as do config nativo; o CPPN do HyperNEAT passa
+    as suas — pesos + LEO — pra medir o funcional com a mesma régua, §24 #4).
     """
-    cfg = load_config()
-    outputs = set(cfg.genome_config.output_keys)
+    if output_keys is None:
+        cfg = load_config()
+        outputs = set(cfg.genome_config.output_keys)
+    else:
+        outputs = set(output_keys)
     adj = {}
     for (i, o), cg in genome.connections.items():
         if cg.enabled:
