@@ -74,7 +74,12 @@ response_replace_rate   = 0.0
 # Connection enable options
 enabled_default         = True
 enabled_mutate_rate     = 0.01
-enabled_rate_to_true_add = 0.0
+# §25 P3 (DIAL, não errata): abre a VIA DE VOLTA da exaptação. Com 0.0, conexão desabilitada
+# nunca reativava — o "material neutro de Wagner" era cemitério, não rede neutra. Com 0.02,
+# silenciada→habilitada a 1,5%/gene/nascimento (contra 0,5% no sentido inverso): exaptação
+# passa a existir, e a meia-vida da poda (§25 P1) ganha significado. Medido na contra-análise
+# (circuito fechado, n=3): +15% de fconns sem custo de genoma.
+enabled_rate_to_true_add = 0.02
 enabled_rate_to_false_add = 0.0
 
 # Connection weight options

@@ -64,7 +64,9 @@ response_replace_rate   = 0.0
 
 enabled_default         = True
 enabled_mutate_rate     = 0.01
-enabled_rate_to_true_add = 0.0
+# §25 P3 (DIAL): via de volta da exaptação, igual ao config-native — com 0.0 a desabilitada
+# nunca reativava (cemitério, não rede neutra). Medido: o CPPN tinha 50% do genoma silenciado.
+enabled_rate_to_true_add = 0.02
 enabled_rate_to_false_add = 0.0
 
 # Pesos do CPPN podem ser fortes: e uma funcao, precisa de amplitude pra fazer curva.

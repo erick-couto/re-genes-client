@@ -20,7 +20,7 @@ import hashlib
 import json
 import os
 import types
-from random import choice
+from random import choice, random
 
 import neat
 from neat.graphs import creates_cycle
@@ -136,14 +136,41 @@ def _sym_configure_crossover(self, genome1, genome2, config):
     for inn in set(p1) | set(p2):
         cg1, cg2 = p1.get(inn), p2.get(inn)
         if cg1 is not None and cg2 is not None:
-            # homologo: sorteia dos dois (ja era assim). Colisao de inovacao -> trata como disjunto.
-            gene = cg1.copy() if cg1.key != cg2.key else cg1.crossover(cg2)
+            if cg1.key != cg2.key:
+                # colisao de inovacao -> trata como disjunto (do pai1)
+                if not cg1.enabled and random() > 0.9:
+                    continue
+                gene = cg1.copy()
+            else:
+                # §25 P1 — Poda com MEIA-VIDA (ordem O2, decidida na tréplica): o material
+                # só decai com EVIDÊNCIA DE SILÊNCIO — desabilitado nos DOIS pais. Gene em
+                # discordância nunca é podado: é decidido pela moeda, 50/50. Silêncio já
+                # compartilhado pelo pool sobrevive a p=0,9 por acasalamento (t½=6,6 ger.);
+                # silêncio exclusivo de um pai passa antes pelo sorteio de disjuntos do §18
+                # (50%) e depois pela poda -> t½≈1,8 ger. A assimetria é registrada como é,
+                # não como soa melhor: o silêncio novo corre obstáculos; o antigo fica protegido.
+                if not cg1.enabled and not cg2.enabled and random() > 0.9:
+                    continue
+                gene = cg1.crossover(cg2)
+                if cg1.enabled != cg2.enabled:
+                    # §25 P2 — MATA A REGRA DOS 75% (neat/genes.py:101-107 do fork): gene
+                    # desabilitado em QUALQUER pai virava desabilitado no filho com p=0,75 —
+                    # ~117 sinapses silenciadas por acasalamento (medido no banco), e a via de
+                    # volta estava fechada por config. No NEAT de 2002 a regra convive com
+                    # fitness+elitismo, que descartam o filho quebrado no mesmo turno; aqui a
+                    # seleção é do MUNDO, então o contrapeso não existe. A expressão passa a
+                    # herdar por MOEDA HONESTA, como qualquer outro atributo do gene.
+                    gene.enabled = bool(choice((cg1, cg2)).enabled)
         elif cg1 is not None:
-            gene = cg1.copy()                 # disjunto do mais apto: sempre entra
+            if not cg1.enabled and random() > 0.9:   # disjunto do mais apto: poda idem
+                continue
+            gene = cg1.copy()
         else:
             # disjunto do MENOS apto. Canonico: so entra se houver EMPATE, e ai por SORTEIO.
             # Sem isto, este gene morria SEMPRE — que era exatamente a erosao.
             if not (empate and choice([True, False])):
+                continue
+            if not cg2.enabled and random() > 0.9:   # poda idem, após o sorteio do §18
                 continue
             gene = cg2.copy()
         if config.feed_forward and creates_cycle(list(self.connections), gene.key):
@@ -155,8 +182,9 @@ def _sym_configure_crossover(self, genome1, genome2, config):
     # monotônica que convergia pra união (pan-genoma) da população. Medido em produção:
     # 86% do inchaço vinha daqui (a mutação explica 14%). Um nó sem conexão herdada não
     # computa nada (o runtime o ignora) — copiar ele era só frete de lixo. Conexões
-    # DESABILITADAS herdadas continuam trazendo seus nós: são a rede neutra (Wagner),
-    # reativáveis em 1 mutação. Nó órfão não é rede neutra; é entulho.
+    # DESABILITADAS herdadas continuam trazendo seus nós: agora com meia-vida de 6,6
+    # gerações (§25 P1) e via de reativação aberta (rate_to_true_add=0,02, §25 P3) —
+    # é isso que as torna rede neutra de Wagner de verdade, e não cemitério.
     needed = set(range(config.num_outputs))  # saídas sempre existem (build_net exige a chave)
     for (i, o) in self.connections:
         needed.add(i); needed.add(o)
