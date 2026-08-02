@@ -37,17 +37,18 @@ CONE_OFFSETS = _build_cone()               # 31 células, mesma ORDEM do mundo
 # §23: sangue (memória de violência) ganha a camada z=+1.0 — contato/consequência.
 CHANNEL_Z = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]    # obstáculo, cheiro, inimigo, perigo, comida, sangue
 
-# --- ENTRADAS (192, na MESMA ordem do encode do host) ---
+# --- ENTRADAS (194, na MESMA ordem do encode do host) ---
 INPUT_COORDS = []
-# 6 escalares (bias, energia, estômago, endorfina, pace_sin, pace_cos): interocepção, não têm
-# lugar no cone -> ficam numa fileira ATRÁS do corpo (y=-1.2), fora do campo visual.
-for i in range(6):
-    INPUT_COORDS.append((-1.0 + 2.0 * i / 5.0, -1.2, 0.0))
+# 8 escalares (bias, energia, estômago, endorfina, pace_sin, pace_cos, damage, impact):
+# interocepção, não têm lugar no cone -> ficam numa fileira ATRÁS do corpo (y=-1.2),
+# fora do campo visual. §26: damage/impact = fato bruto (dano/impacto sofrido neste tick).
+for i in range(8):
+    INPUT_COORDS.append((-1.0 + 2.0 * i / 7.0, -1.2, 0.0))
 # 6 canais x 31 células do cone: x = lateral (esq<0, dir>0), y = distância à frente
 for ch in range(6):
     for (f, l) in CONE_OFFSETS:
         INPUT_COORDS.append((l / 3.0, f / 6.0, CHANNEL_Z[ch]))
-assert len(INPUT_COORDS) == 192, len(INPUT_COORDS)
+assert len(INPUT_COORDS) == 194, len(INPUT_COORDS)
 
 # --- SAÍDAS (7): posicionadas pelo SIGNIFICADO DIRECIONAL da ação ---
 # É isto que deixa a regra geométrica existir: "vira-esq" mora à esquerda (x=-1), então o CPPN

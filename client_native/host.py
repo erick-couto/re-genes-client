@@ -125,12 +125,17 @@ def _blur(row, kernel, r):
 
 # Encoding v3 EGOCÊNTRICO: 161 = bias + energy + stomach + endorfina + MARCA-PASSO(sin,cos)
 # + 5 canais x 31 do CONE, BORRADOS pela acuidade do cérebro (desfoque contínuo; predação em fade).
-def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity):
+def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity,
+           damage=0.0, impact=0.0):
     if not vision or len(vision) < 6 or len(vision[0]) < 31:
-        return [0.0] * 192
+        return [0.0] * 194
     kernel, r, pred_w = acuity[0], acuity[1], acuity[2]
     ss = stomach_size or 1.0
-    inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos]
+    # §26: damage/impact = FATO BRUTO interoceptivo (dano de mordida e impacto de colisão
+    # sofridos neste tick), normalizados pelo PRÓPRIO estômago (egocêntrico, sinal positivo).
+    # Não é valência: o mundo diz "aconteceu, nesta quantidade"; o que vale é do cérebro.
+    inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos,
+           min(1.0, damage / ss), min(1.0, impact / ss)]
     # §23: 6º canal (sangue) entra como o cheiro — traço QUÍMICO, legível por qualquer cérebro;
     # NÃO entra no _PRED_CH (o fade de acuidade é pra avaliação de AMEAÇA, não pra ler mancha).
     for ch in range(6):
@@ -250,7 +255,8 @@ async def run_one(idx: int):
                             endo -= 2.0
                         endo = max(0.0, min(100.0, endo))
                         inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
-                                     msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity)
+                                     msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity,
+                                     damage=msg.get("damage", 0.0), impact=msg.get("impact", 0.0))
                         out = net.activate(inp)
                         a = decide(out)
                         await ws.send(json.dumps(ACTIONS[a]))

@@ -109,14 +109,17 @@ def _blur(row, kernel, r):
     return out
 
 
-def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity):
-    """IDÊNTICO ao do nativo — mesma ordem das 192 entradas. Tem que ser: o substrato mapeia
+def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity,
+           damage=0.0, impact=0.0):
+    """IDÊNTICO ao do nativo — mesma ordem das 194 entradas. Tem que ser: o substrato mapeia
     coordenada por ÍNDICE (substrate.INPUT_COORDS segue esta mesma ordem)."""
     if not vision or len(vision) < 6 or len(vision[0]) < 31:
-        return [0.0] * 192
+        return [0.0] * 194
     kernel, r, pred_w = acuity[0], acuity[1], acuity[2]
     ss = stomach_size or 1.0
-    inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos]
+    # §26: damage/impact = fato bruto interoceptivo, normalizado pelo próprio estômago.
+    inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos,
+           min(1.0, damage / ss), min(1.0, impact / ss)]
     # §23: 6º canal (sangue) como o cheiro — traço químico, fora do fade de predação (_PRED_CH).
     for ch in range(6):
         blurred = _blur(vision[ch], kernel, r)
@@ -226,7 +229,8 @@ async def run_one(idx: int):
                             endo -= 2.0
                         endo = max(0.0, min(100.0, endo))
                         inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
-                                     msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity)
+                                     msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity,
+                                     damage=msg.get("damage", 0.0), impact=msg.get("impact", 0.0))
                         out, hid = sub.activate(W_ih, W_ho, inp)
                         a = decide(out)
                         await ws.send(json.dumps(ACTIONS[a]))
