@@ -29,6 +29,7 @@ import os
 import random
 import ssl
 import sys
+import time
 
 import websockets
 
@@ -166,8 +167,15 @@ def decide(out):
 async def run_one(idx: int):
     while True:
         try:
-            async with websockets.connect(URL, max_size=8_000_000, ssl=SSL) as ws:
+            # CRONÔMETRO DE CICLO (diagnóstico Fable 04/08, mesmo do host nativo):
+            # 79% do ciclo do cliente fora do ar. close_timeout=1 mitiga a hipótese do
+            # close handshake esperando um servidor que já saiu; o print mede as fases.
+            t0 = time.perf_counter()
+            t_born = t_dead = None
+            async with websockets.connect(URL, max_size=8_000_000, ssl=SSL,
+                                          close_timeout=1) as ws:
                 welcome = json.loads(await ws.recv())
+                t_born = time.perf_counter()
                 seed_a, seed_b = welcome.get("brain_a"), welcome.get("brain_b")
                 body = welcome.get("body") or welcome.get("stats") or {}
                 stomach_size = body.get("stomach_size", 200) or 200
@@ -214,6 +222,7 @@ async def run_one(idx: int):
                     msg = json.loads(raw)
                     if msg.get("type") == "UPDATE":
                         if not msg.get("alive", True):
+                            t_dead = time.perf_counter()
                             break
                         e = msg.get("energy")
                         if e is not None:
@@ -252,6 +261,10 @@ async def run_one(idx: int):
                             await ws.send(json.dumps(payload))
                         else:
                             viz_sent = False   # parou de observar -> reenvia estrutura depois
+            t_end = time.perf_counter()
+            print(f"[H{idx}] ciclo: connect {((t_born or t0) - t0):.1f}s | "
+                  f"vida {((t_dead - t_born) if (t_dead and t_born) else -1):.1f}s | "
+                  f"close {(t_end - (t_dead or t_born or t0)):.1f}s")
         except Exception as e:
             print(f"[H{idx}] reconnect ({e.__class__.__name__}: {e})")
             await asyncio.sleep(1.0)

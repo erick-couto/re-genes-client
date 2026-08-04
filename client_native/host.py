@@ -186,8 +186,17 @@ def decide(out):
 async def run_one(idx: int):
     while True:
         try:
-            async with websockets.connect(URL, max_size=8_000_000, ssl=SSL) as ws:
+            # CRONÔMETRO DE CICLO (diagnóstico Fable 04/08): 50 clientes sustentavam só
+            # ~8 amebas — cada cliente passava 79% do ciclo FORA DO AR (~36s de 46s).
+            # Hipótese principal: o close handshake do websocket (close_timeout padrão
+            # 10s na lib) esperando o frame de um servidor que já saiu do handler na
+            # morte. close_timeout=1 mitiga; o print mede connect/vida/close p/ provar.
+            t0 = time.perf_counter()
+            t_born = t_dead = None
+            async with websockets.connect(URL, max_size=8_000_000, ssl=SSL,
+                                          close_timeout=1) as ws:
                 welcome = json.loads(await ws.recv())
+                t_born = time.perf_counter()
                 seed_a = welcome.get("brain_a")
                 seed_b = welcome.get("brain_b")
                 body = welcome.get("body") or welcome.get("stats") or {}
@@ -240,6 +249,7 @@ async def run_one(idx: int):
                     msg = json.loads(raw)
                     if msg.get("type") == "UPDATE":
                         if not msg.get("alive", True):
+                            t_dead = time.perf_counter()
                             break  # morreu -> reconecta
                         e = msg.get("energy")
                         if e is not None:
@@ -279,6 +289,10 @@ async def run_one(idx: int):
                             await ws.send(json.dumps(payload))
                         else:
                             viz_sent = False   # parou de observar -> reenvia estrutura na próxima
+            t_end = time.perf_counter()
+            print(f"[{idx}] ciclo: connect {((t_born or t0) - t0):.1f}s | "
+                  f"vida {((t_dead - t_born) if (t_dead and t_born) else -1):.1f}s | "
+                  f"close {(t_end - (t_dead or t_born or t0)):.1f}s")
         except Exception as e:
             print(f"[{idx}] reconnect ({e.__class__.__name__}: {e})")
             await asyncio.sleep(1.0)
