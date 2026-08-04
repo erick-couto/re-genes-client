@@ -231,6 +231,8 @@ async def run_one(idx: int):
                             last_e = e
                         continue
                     if "vision" in msg:
+                        # R10: corpo atual (tanque cresce com a massa). Sem o campo, mantém WELCOME.
+                        stomach_size = msg.get("stomach_size", stomach_size)
                         energy = msg.get("energy", 0)
                         stomach = msg.get("stomach", 0)
                         endo -= 0.2
