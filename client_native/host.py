@@ -27,6 +27,7 @@ import time
 
 import websockets
 import neat_brain as nb
+import cone_psf                      # R-BLUR: PSF na geometria do cone (compartilhado c/ o hyper)
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
@@ -90,37 +91,21 @@ _PRED_CH = (2, 3)       # canais de predação: 2=inimigo, 3=perigo. 0=obstácul
 
 
 def acuity_params(conns):
-    """C (conexões) -> (kernel_gaussiano, raio, peso_predacao, A). Fixo no nascimento."""
+    """C (conexões) -> (PSF_do_cone, sigma, peso_predacao, A). Fixo no nascimento.
+
+    R-BLUR (§8 do Relatório Guardião): a PSF passou a viver na GEOMETRIA do cone
+    (cone_psf.py), não no índice do buffer. A LEI não muda — A = C/(C+K),
+    sigma = SIGMA_MAX*(1-A) —, muda a métrica de vizinhança."""
     A = conns / (conns + ACUITY_K)
     sigma = ACUITY_SIGMA_MAX * (1.0 - A)
-    kernel, r = _blur_kernel(sigma)
     pred_w = max(0.0, min(1.0, (A - ACUITY_PRED_LO) / (ACUITY_PRED_HI - ACUITY_PRED_LO)))
-    return (kernel, r, pred_w, A)
+    return (cone_psf.psf(sigma), sigma, pred_w, A)
 
 
-def _blur_kernel(sigma):
-    """Kernel gaussiano 1D normalizado (raio ~3σ). σ quase 0 -> ([1.0], 0) = visão nítida."""
-    if sigma < 0.35:
-        return ([1.0], 0)
-    r = max(1, int(round(3.0 * sigma)))
-    ker = [math.exp(-(d * d) / (2.0 * sigma * sigma)) for d in range(-r, r + 1)]
-    s = sum(ker)
-    return ([w / s for w in ker], r)
-
-
-def _blur(row, kernel, r):
-    """Convolve o cone de 31 células com o kernel (borda: clamp). r=0 -> identidade (nítido)."""
-    if r == 0:
-        return list(row[:31])
-    out = [0.0] * 31
-    for k in range(31):
-        acc = 0.0
-        for j in range(len(kernel)):
-            idx = k + j - r
-            idx = 0 if idx < 0 else (30 if idx > 30 else idx)
-            acc += kernel[j] * row[idx]
-        out[k] = acc
-    return out
+def _blur(row, P):
+    """Aplica a PSF geométrica do cone (cone_psf). Substitui a convolução no índice serial,
+    que misturava a extrema direita de uma fileira com a extrema esquerda da seguinte."""
+    return cone_psf.blur(row, P)
 
 
 # Encoding v3 EGOCÊNTRICO: 161 = bias + energy + stomach + endorfina + MARCA-PASSO(sin,cos)
@@ -129,7 +114,7 @@ def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acui
            damage=0.0, impact=0.0):
     if not vision or len(vision) < 6 or len(vision[0]) < 31:
         return [0.0] * 194
-    kernel, r, pred_w = acuity[0], acuity[1], acuity[2]
+    P, pred_w = acuity[0], acuity[2]
     ss = stomach_size or 1.0
     # §26: damage/impact = FATO BRUTO interoceptivo (dano de mordida e impacto de colisão
     # sofridos neste tick), normalizados pelo PRÓPRIO estômago (egocêntrico, sinal positivo).
@@ -139,7 +124,7 @@ def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acui
     # §23: 6º canal (sangue) entra como o cheiro — traço QUÍMICO, legível por qualquer cérebro;
     # NÃO entra no _PRED_CH (o fade de acuidade é pra avaliação de AMEAÇA, não pra ler mancha).
     for ch in range(6):
-        blurred = _blur(vision[ch], kernel, r)
+        blurred = _blur(vision[ch], P)
         if ch in _PRED_CH and pred_w < 1.0:
             blurred = [v * pred_w for v in blurred]      # predação em fade-in contínuo
         inp.extend(blurred)

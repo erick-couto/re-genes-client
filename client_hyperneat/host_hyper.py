@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
                                 "client_native"))
 import neat_brain as nb          # noqa: E402
 import substrate as sub          # noqa: E402
+import cone_psf                  # noqa: E402  R-BLUR: MESMA PSF do nativo (encode idêntico)
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
@@ -80,34 +81,17 @@ _PRED_CH = (2, 3)
 
 
 def acuity_params(conns):
+    """R-BLUR: PSF na geometria do cone (cone_psf), não no índice serial. A lei de
+    acuidade é a mesma do nativo — tem de ser, ou os dois encodes divergem."""
     A = conns / (conns + ACUITY_K)
     sigma = ACUITY_SIGMA_MAX * (1.0 - A)
-    kernel, r = _blur_kernel(sigma)
     pred_w = max(0.0, min(1.0, (A - ACUITY_PRED_LO) / (ACUITY_PRED_HI - ACUITY_PRED_LO)))
-    return (kernel, r, pred_w, A)
+    return (cone_psf.psf(sigma), sigma, pred_w, A)
 
 
-def _blur_kernel(sigma):
-    if sigma < 0.35:
-        return ([1.0], 0)
-    r = max(1, int(round(3.0 * sigma)))
-    ker = [math.exp(-(d * d) / (2.0 * sigma * sigma)) for d in range(-r, r + 1)]
-    s = sum(ker)
-    return ([w / s for w in ker], r)
-
-
-def _blur(row, kernel, r):
-    if r == 0:
-        return list(row[:31])
-    out = [0.0] * 31
-    for k in range(31):
-        acc = 0.0
-        for j in range(len(kernel)):
-            idx = k + j - r
-            idx = 0 if idx < 0 else (30 if idx > 30 else idx)
-            acc += kernel[j] * row[idx]
-        out[k] = acc
-    return out
+def _blur(row, P):
+    """R-BLUR: mesma PSF geométrica do nativo."""
+    return cone_psf.blur(row, P)
 
 
 def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity,
@@ -116,14 +100,14 @@ def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acui
     coordenada por ÍNDICE (substrate.INPUT_COORDS segue esta mesma ordem)."""
     if not vision or len(vision) < 6 or len(vision[0]) < 31:
         return [0.0] * 194
-    kernel, r, pred_w = acuity[0], acuity[1], acuity[2]
+    P, pred_w = acuity[0], acuity[2]
     ss = stomach_size or 1.0
     # §26: damage/impact = fato bruto interoceptivo, normalizado pelo próprio estômago.
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos,
            min(1.0, damage / ss), min(1.0, impact / ss)]
     # §23: 6º canal (sangue) como o cheiro — traço químico, fora do fade de predação (_PRED_CH).
     for ch in range(6):
-        blurred = _blur(vision[ch], kernel, r)
+        blurred = _blur(vision[ch], P)
         if ch in _PRED_CH and pred_w < 1.0:
             blurred = [v * pred_w for v in blurred]
         inp.extend(blurred)
