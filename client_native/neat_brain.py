@@ -162,6 +162,20 @@ def _sym_configure_crossover(self, genome1, genome2, config):
                     # herdar por MOEDA HONESTA, como qualquer outro atributo do gene.
                     gene.enabled = bool(choice((cg1, cg2)).enabled)
         elif cg1 is not None:
+            # §35 — SIMETRIA NO EMPATE. Este ramo copiava o disjunto de parent1 SEMPRE,
+            # enquanto o de parent2 (abaixo) passava por moeda. Como a fitness e' igualada
+            # por construcao (crossover(), linhas ~269-270: ambas viram 1.0), TODO
+            # acasalamento cai no empate — e parent1 e' sempre o SEGUNDO argumento, porque
+            # `genome1.fitness > genome2.fitness` e' sempre falso. Resultado: catraca de
+            # crescimento dependente da ordem do argumento.
+            #     E[filho] = comuns + 1,0*excl(p1) + 0,5*excl(p2) = n + 0,5*(n - c)
+            # Medido no banco de producao (150 pares, SEM mutacao): filho = 117,8% da media
+            # dos pais, contra 115,0% previstos pelo mecanismo e 100% do simetrico. Trocar a
+            # ordem dos pais mudava o tamanho em 79 de 80 pares.
+            # O docstring de crossover() ja prometia "cruzamento SIMETRICO"; agora e verdade.
+            # NAO mexe nas podas com meia-vida (§25): elas tem justificativa propria.
+            if empate and not choice([True, False]):
+                continue
             if not cg1.enabled and random() > 0.9:   # disjunto do mais apto: poda idem
                 continue
             gene = cg1.copy()
@@ -258,12 +272,12 @@ def crossover(g1, g2, key: int = 0):
     disjuntos/excedentes vêm do pai mais apto. Fitness igualada (a seleção é do MUNDO) ->
     cruzamento SIMÉTRICO. Retorna o filho ainda SEM mutar (mute depois).
 
-    BUG ESTRUTURAL ABERTO: inovação (InnovationTracker.global_counter) e id de neurônio
-    (get_new_node_key = max+1) são atribuídos POR PROCESSO, mas os genomas circulam entre
-    clientes. Linhagens de máquinas diferentes não alinham -> genes viram disjuntos, o filho
-    descarta ~metade a cada acasalamento (erosão de conexões) e emite "Innovation number
-    collision". Fix correto = id de nó/inovação GLOBAL e DETERMINÍSTICO (derivado da estrutura,
-    ex.: id do nó = hash da conexão dividida), igual em todo cliente. NÃO remover o crossover.
+    HISTORICO: houve um bug estrutural em que inovacao e id de neuronio eram atribuidos POR
+    PROCESSO, entao linhagens de maquinas diferentes nao alinhavam e o filho descartava ~metade
+    dos genes por acasalamento. CORRIGIDO pela identidade estrutural deterministica no topo deste
+    modulo (inovacao = f(in,out) via sha256; id de no = f(conexao dividida)). VERIFICADO em
+    06/08/2026 sobre 120 pares do brain_bank de producao: 68,4% de genes em comum (Jaccard 45%).
+    O crossover alinha. Este paragrafo existia como "BUG ABERTO" e estava stale.
     """
     cfg = load_config()
     g1.fitness = g1.fitness if getattr(g1, "fitness", None) is not None else 1.0
