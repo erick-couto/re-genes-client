@@ -105,9 +105,11 @@ node_add_prob           = 0.2
 node_delete_prob        = 0.0
 
 # Network parameters
-# v6.0 INTEROCEPÇÃO (§26): 194 entradas = bias + energy + stomach + endorfina + MARCA-PASSO(sin,cos)
+# v6.0 INTEROCEPÇÃO (§26): 194 entradas = bias + energy + stomach + ingested + MARCA-PASSO(sin,cos)
 # + damage + impact (fato bruto: dano de mordida e impacto de colisão neste tick)
 # + 6 canais x 31 (cone de visao pra frente; o 6o canal e o campo de sangue/memoria de violencia).
+# R4/#3 (08/2026): o slot 3 era a endorfina FABRICADA pelo executor (pico/decaimento/fome);
+# agora e o ingested — fato bruto do TICK, normalizado pelo stomach_size. Shape/ordem intactos.
 # 7 saidas (frente, tras, vira-esq, vira-dir, fica, ataca-frente, EMPURRA-frente).
 # Trocar num_inputs/outputs exige RESET (161 -> 192 na v4.0, 192 -> 194 na v6.0).
 # num_hidden=0: NASCER MAGRO -- sem camada oculta semeada; a profundidade emerge por node_add

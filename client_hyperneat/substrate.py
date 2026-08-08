@@ -39,9 +39,11 @@ CHANNEL_Z = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]    # obstáculo, cheiro, inimigo, 
 
 # --- ENTRADAS (194, na MESMA ordem do encode do host) ---
 INPUT_COORDS = []
-# 8 escalares (bias, energia, estômago, endorfina, pace_sin, pace_cos, damage, impact):
+# 8 escalares (bias, energia, estômago, ingested, pace_sin, pace_cos, damage, impact):
 # interocepção, não têm lugar no cone -> ficam numa fileira ATRÁS do corpo (y=-1.2),
 # fora do campo visual. §26: damage/impact = fato bruto (dano/impacto sofrido neste tick).
+# R4/#3: ingested idem — quanto o mundo reportou ingerido neste tick (era a endorfina
+# fabricada pelo executor; o mundo descreve, o executor não inventa estado).
 for i in range(8):
     INPUT_COORDS.append((-1.0 + 2.0 * i / 7.0, -1.2, 0.0))
 # 6 canais x 31 células do cone: x = lateral (esq<0, dir>0), y = distância à frente

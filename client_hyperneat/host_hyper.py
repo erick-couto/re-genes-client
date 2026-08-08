@@ -93,7 +93,7 @@ def _blur(row, P):
     return cone_psf.blur(row, P)
 
 
-def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity,
+def encode(vision, energy, stomach, stomach_size, ingested, pace_sin, pace_cos, acuity,
            damage=0.0, impact=0.0):
     """IDÊNTICO ao do nativo — mesma ordem das 194 entradas. Tem que ser: o substrato mapeia
     coordenada por ÍNDICE (substrate.INPUT_COORDS segue esta mesma ordem)."""
@@ -102,8 +102,9 @@ def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acui
     P = acuity[0]
     ss = stomach_size or 1.0
     # §26: damage/impact = fato bruto interoceptivo, normalizado pelo próprio estômago.
-    inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos,
-           min(1.0, damage / ss), min(1.0, impact / ss)]
+    # R4/#3: ingested idem — fato do tick vindo do mundo; substitui a endorfina fabricada.
+    inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, min(1.0, ingested / ss),
+           pace_sin, pace_cos, min(1.0, damage / ss), min(1.0, impact / ss)]
     # §23: 6º canal (sangue) como o cheiro — traço químico, legível por qualquer cérebro.
     for ch in range(6):
         inp.extend(_blur(vision[ch], P))
@@ -196,7 +197,6 @@ async def run_one(idx: int):
                 print(f"[H{idx}] nasceu ({origin}) cppn: {cppn_nodes}n/{cppn_conns}c (real {fnodes}/{fconns}, {genes} genes) -> "
                       f"substrato: {n_conns} sinapses | acuidade={acuity[2]:.2f} sigma={acuity[1]:.2f}")
 
-                endo, last_e = 50.0, None
                 viz_sent = False   # já mandei a ESTRUTURA nesta sessão de observação?
                 async for raw in ws:
                     msg = json.loads(raw)
@@ -204,22 +204,16 @@ async def run_one(idx: int):
                         if not msg.get("alive", True):
                             t_dead = time.perf_counter()
                             break
-                        e = msg.get("energy")
-                        if e is not None:
-                            if last_e is not None and e > last_e:
-                                endo = min(100.0, endo + 100.0)   # comeu -> endorfina
-                            last_e = e
                         continue
                     if "vision" in msg:
                         # R10: corpo atual (tanque cresce com a massa). Sem o campo, mantém WELCOME.
                         stomach_size = msg.get("stomach_size", stomach_size)
                         energy = msg.get("energy", 0)
                         stomach = msg.get("stomach", 0)
-                        endo -= 0.2
-                        if energy < stomach_size * 0.5:
-                            endo -= 2.0
-                        endo = max(0.0, min(100.0, endo))
-                        inp = encode(msg.get("vision"), energy, stomach, stomach_size, endo,
+                        # R4/#3: ingested vem do TICK (fato do mundo; 0.0 na ausência do campo).
+                        # Sem estado, sem decaimento: um tick não vaza para o seguinte.
+                        inp = encode(msg.get("vision"), energy, stomach, stomach_size,
+                                     msg.get("ingested", 0.0),
                                      msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity,
                                      damage=msg.get("damage", 0.0), impact=msg.get("impact", 0.0))
                         out, hid = sub.activate(W_ih, W_ho, inp)
