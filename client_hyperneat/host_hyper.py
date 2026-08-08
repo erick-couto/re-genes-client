@@ -76,8 +76,8 @@ _CPPN_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config-
 # está registrado como ressalva na §15.
 ACUITY_K = 120.0
 ACUITY_SIGMA_MAX = 6.0
-ACUITY_PRED_LO, ACUITY_PRED_HI = 0.40, 0.70
-_PRED_CH = (2, 3)
+# R5/#2 (08/2026): sem fade semântico (pred_w/_PRED_CH removidos) — o executor não edita a
+# observação; a PSF borra TODOS os canais igual. Mesma física do nativo.
 
 
 def acuity_params(conns):
@@ -85,8 +85,7 @@ def acuity_params(conns):
     acuidade é a mesma do nativo — tem de ser, ou os dois encodes divergem."""
     A = conns / (conns + ACUITY_K)
     sigma = ACUITY_SIGMA_MAX * (1.0 - A)
-    pred_w = max(0.0, min(1.0, (A - ACUITY_PRED_LO) / (ACUITY_PRED_HI - ACUITY_PRED_LO)))
-    return (cone_psf.psf(sigma), sigma, pred_w, A)
+    return (cone_psf.psf(sigma), sigma, A)
 
 
 def _blur(row, P):
@@ -100,17 +99,14 @@ def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acui
     coordenada por ÍNDICE (substrate.INPUT_COORDS segue esta mesma ordem)."""
     if not vision or len(vision) < 6 or len(vision[0]) < 31:
         return [0.0] * 194
-    P, pred_w = acuity[0], acuity[2]
+    P = acuity[0]
     ss = stomach_size or 1.0
     # §26: damage/impact = fato bruto interoceptivo, normalizado pelo próprio estômago.
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos,
            min(1.0, damage / ss), min(1.0, impact / ss)]
-    # §23: 6º canal (sangue) como o cheiro — traço químico, fora do fade de predação (_PRED_CH).
+    # §23: 6º canal (sangue) como o cheiro — traço químico, legível por qualquer cérebro.
     for ch in range(6):
-        blurred = _blur(vision[ch], P)
-        if ch in _PRED_CH and pred_w < 1.0:
-            blurred = [v * pred_w for v in blurred]
-        inp.extend(blurred)
+        inp.extend(_blur(vision[ch], P))
     return inp
 
 
@@ -196,9 +192,9 @@ async def run_one(idx: int):
                     "type": "brain", "brain": nb.pack(g),
                     "nodes": sub.N_IN + sub.N_HID + sub.N_OUT, "conns": n_conns,
                     "fnodes": fnodes, "fconns": fconns, "genes": genes,
-                    "acuity": round(acuity[3], 3)}))
+                    "acuity": round(acuity[2], 3)}))
                 print(f"[H{idx}] nasceu ({origin}) cppn: {cppn_nodes}n/{cppn_conns}c (real {fnodes}/{fconns}, {genes} genes) -> "
-                      f"substrato: {n_conns} sinapses | acuidade={acuity[3]:.2f}")
+                      f"substrato: {n_conns} sinapses | acuidade={acuity[2]:.2f} sigma={acuity[1]:.2f}")
 
                 endo, last_e = 50.0, None
                 viz_sent = False   # já mandei a ESTRUTURA nesta sessão de observação?

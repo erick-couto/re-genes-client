@@ -85,21 +85,20 @@ SSL = _ssl_ctx()
 # Lei de embodiment (como cubo-quadrado/Kleiber), não currículo. Fixo no nascimento, client-side.
 ACUITY_K = 120.0        # meia-saturação: A = C/(C+K). Baixo -> gradiente morde na faixa magra.
 ACUITY_SIGMA_MAX = 6.0  # desfoque máximo (sigma no cone de 31 células) em A=0
-ACUITY_PRED_LO = 0.40   # predação (inimigo/perigo) entra em FADE contínuo de A=0.40...
-ACUITY_PRED_HI = 0.70   # ...até 100% em A=0.70 (sem degrau)
-_PRED_CH = (2, 3)       # canais de predação: 2=inimigo, 3=perigo. 0=obstáculo,1=cheiro,4=comida = sempre.
+# R5/#2 (08/2026): SEM fade semântico. O pred_w zerava os canais 2/3 (inimigo/perigo) pra
+# A<0,40 — o executor EDITANDO a própria observação. O mundo descreve; quem interpreta é o
+# cérebro. A única física da percepção é a PSF acima, aplicada igual a TODOS os canais.
 
 
 def acuity_params(conns):
-    """C (conexões) -> (PSF_do_cone, sigma, peso_predacao, A). Fixo no nascimento.
+    """C (conexões) -> (PSF_do_cone, sigma, A). Fixo no nascimento.
 
     R-BLUR (§8 do Relatório Guardião): a PSF passou a viver na GEOMETRIA do cone
     (cone_psf.py), não no índice do buffer. A LEI não muda — A = C/(C+K),
     sigma = SIGMA_MAX*(1-A) —, muda a métrica de vizinhança."""
     A = conns / (conns + ACUITY_K)
     sigma = ACUITY_SIGMA_MAX * (1.0 - A)
-    pred_w = max(0.0, min(1.0, (A - ACUITY_PRED_LO) / (ACUITY_PRED_HI - ACUITY_PRED_LO)))
-    return (cone_psf.psf(sigma), sigma, pred_w, A)
+    return (cone_psf.psf(sigma), sigma, A)
 
 
 def _blur(row, P):
@@ -109,25 +108,21 @@ def _blur(row, P):
 
 
 # Encoding v3 EGOCÊNTRICO: 161 = bias + energy + stomach + endorfina + MARCA-PASSO(sin,cos)
-# + 5 canais x 31 do CONE, BORRADOS pela acuidade do cérebro (desfoque contínuo; predação em fade).
+# + 5 canais x 31 do CONE, BORRADOS pela acuidade do cérebro (desfoque contínuo, igual em todos).
 def encode(vision, energy, stomach, stomach_size, endo, pace_sin, pace_cos, acuity,
            damage=0.0, impact=0.0):
     if not vision or len(vision) < 6 or len(vision[0]) < 31:
         return [0.0] * 194
-    P, pred_w = acuity[0], acuity[2]
+    P = acuity[0]
     ss = stomach_size or 1.0
     # §26: damage/impact = FATO BRUTO interoceptivo (dano de mordida e impacto de colisão
     # sofridos neste tick), normalizados pelo PRÓPRIO estômago (egocêntrico, sinal positivo).
     # Não é valência: o mundo diz "aconteceu, nesta quantidade"; o que vale é do cérebro.
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, endo / 100.0, pace_sin, pace_cos,
            min(1.0, damage / ss), min(1.0, impact / ss)]
-    # §23: 6º canal (sangue) entra como o cheiro — traço QUÍMICO, legível por qualquer cérebro;
-    # NÃO entra no _PRED_CH (o fade de acuidade é pra avaliação de AMEAÇA, não pra ler mancha).
+    # §23: 6º canal (sangue) entra como o cheiro — traço QUÍMICO, legível por qualquer cérebro.
     for ch in range(6):
-        blurred = _blur(vision[ch], P)
-        if ch in _PRED_CH and pred_w < 1.0:
-            blurred = [v * pred_w for v in blurred]      # predação em fade-in contínuo
-        inp.extend(blurred)
+        inp.extend(_blur(vision[ch], P))
     return inp
 
 # índice -> comando de wire (bate com ACTION_SPEC do mundo, v3 egocêntrico: 7 ações)
@@ -216,16 +211,16 @@ async def run_one(idx: int):
                 nodes, conns = nb.complexity(g)
                 fnodes, fconns = nb.functional_complexity(g)
                 genes = len(g.nodes) + len(g.connections)
-                acuity = acuity_params(fconns)   # (L, B, ve_predacao, A) — fixo em vida
+                acuity = acuity_params(fconns)   # (PSF, sigma, A) — fixo em vida
                 await ws.send(json.dumps({"type": "brain", "brain": nb.pack(g),
                                           "nodes": nodes, "conns": conns,
                                           "fnodes": fnodes, "fconns": fconns, "genes": genes,
-                                          "acuity": round(acuity[3], 3)}))
+                                          "acuity": round(acuity[2], 3)}))
                 net = nb.build_net(g)
-                _telemetry(idx, origin, nodes, conns, fnodes, fconns, genes, acuity[3])
+                _telemetry(idx, origin, nodes, conns, fnodes, fconns, genes, acuity[2])
                 print(f"[{idx}] nasceu ({origin}) nos={nodes} lig={conns} "
                       f"real={fnodes}/{fconns} genes={genes} "
-                      f"acuidade={acuity[3]:.2f} (niveis={acuity[0]} bins={acuity[1]} predacao={acuity[2]})")
+                      f"acuidade={acuity[2]:.2f} sigma={acuity[1]:.2f}")
 
                 endo, last_e = 50.0, None
                 viz_sent = False   # já mandei a ESTRUTURA nesta sessão de observação?

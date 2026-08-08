@@ -181,6 +181,33 @@ def test_os_dois_executores_usam_a_mesma_psf():
         assert all(abs(x - y) < 1e-12 for x, y in zip(a, b)), f"divergem em conns={conns}"
 
 
+def test_canais_de_predacao_intactos_com_acuidade_baixa():
+    """R5/#2 (card #2): o executor NÃO edita a observação. Com A=0 (cérebro sem conexões
+    funcionais) os canais 2 (inimigo) e 3 (perigo) têm de sair do encode EXATAMENTE como a
+    PSF os borra — o fade pred_w que os zerava para A<0,40 foi removido. Vale para os dois
+    executores (paridade no tratamento dos canais)."""
+    raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(raiz, "client_hyperneat"))
+    argv = sys.argv[:]
+    sys.argv = [argv[0]]
+    try:
+        import host as hn
+        import host_hyper as hh
+    finally:
+        sys.argv = argv
+    vis = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(6)]
+    for hx in (hn, hh):
+        ac = hx.acuity_params(0)                    # A = 0 — o caso que o fade zerava por inteiro
+        assert ac[2] == 0.0
+        inp = hx.encode(vis, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, ac)
+        for ch in (2, 3):
+            esperado = blur(vis[ch], ac[0])
+            obtido = inp[8 + ch * 31: 8 + (ch + 1) * 31]
+            assert all(abs(x - y) < 1e-12 for x, y in zip(obtido, esperado)), \
+                f"{hx.__name__} canal {ch}: o executor ainda edita a observação"
+            assert max(obtido) > 0.0, f"{hx.__name__} canal {ch} zerado (o velho fade)"
+
+
 def test_custo_de_cpu():
     """A §7.2 do meu contraditório exigiu o custo antes de priorizar. Aqui está ele."""
     import time
