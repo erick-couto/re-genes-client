@@ -35,6 +35,14 @@ import websockets
 # wss:// = produção; ws://127.0.0.1:8123 = local (via env REGENES_SERVER).
 SERVER_URL = os.getenv("REGENES_SERVER", "wss://re-genes.is")
 
+# §46 (R-SHAPE, card #38): contrato que a runtime DECLARA no join — o mundo valida
+# contra o /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). v5:
+# 194 observações (6×31 cone + 8 escalares), 7 ações egocêntricas — o fallback de
+# comandos em _run_one segue este mesmo shape.
+PROTOCOL_VERSION = 5
+N_OBS = 194
+N_ACTIONS = 7
+
 
 def _make_ssl_context():
     """Tolera o MITM local do Avast (VERIFY_X509_STRICT reprova o root dele).
@@ -106,7 +114,8 @@ class BaseAgent:
 # =========================================================
 async def _run_one(agent: BaseAgent):
     q = (f"/ws/join?species={agent.species}&paradigm={agent.paradigm}"
-         f"&wants_brain={int(agent.wants_brain)}&self_learns={int(agent.self_learns)}")
+         f"&wants_brain={int(agent.wants_brain)}&self_learns={int(agent.self_learns)}"
+         f"&protocol_version={PROTOCOL_VERSION}&n_obs={N_OBS}&n_actions={N_ACTIONS}")
     url = SERVER_URL + q
     ssl_ctx = SSL_CONTEXT if url.startswith("wss") else None
     async with websockets.connect(url, ssl=ssl_ctx) as ws:

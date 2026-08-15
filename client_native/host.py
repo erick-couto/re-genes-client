@@ -32,8 +32,17 @@ import cone_psf                      # R-BLUR: PSF na geometria do cone (compart
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")  # dono da linhagem (carimbo na genealogia)
+# §46 (R-SHAPE, card #38): o contrato DECLARADO no join — o mundo valida contra o
+# /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). n_obs = o que o
+# encode() abaixo monta (8 escalares + 6×31 do cone); n_actions = len(ACTIONS).
+# Os três valores andam juntos com o encode/ACTIONS: se o shape mudar, muda aqui.
+PROTOCOL_VERSION = 5
+N_OBS = 194
+N_ACTIONS = 7
 URL = (BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_topology"
-       "&wants_brain=1&self_learns=0" + (f"&operator={OP}" if OP else ""))
+       "&wants_brain=1&self_learns=0"
+       f"&protocol_version={PROTOCOL_VERSION}&n_obs={N_OBS}&n_actions={N_ACTIONS}"
+       + (f"&operator={OP}" if OP else ""))
 
 # TELEMETRIA LOCAL de complexidade do cérebro (a produção só guarda sumários; isto dá a curva
 # na hora, sem depender de deploy do mundo). 1 linha por nascimento. Append síncrono é seguro no

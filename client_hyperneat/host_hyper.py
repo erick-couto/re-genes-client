@@ -45,8 +45,16 @@ import cone_psf                  # noqa: E402  R-BLUR: MESMA PSF do nativo (enco
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")
+# §46 (R-SHAPE, card #38): o contrato DECLARADO no join — o mundo valida contra o
+# /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). MESMO shape do
+# nativo (§15/§16): encode() monta 194 (8 escalares + 6×31 do cone), ACTIONS tem 7.
+PROTOCOL_VERSION = 5
+N_OBS = 194
+N_ACTIONS = 7
 URL = (BASE.rstrip("/") + "/ws/join?species=HyperNEAT&paradigm=hyperneat_cppn"
-       "&wants_brain=1&self_learns=0" + (f"&operator={OP}" if OP else ""))
+       "&wants_brain=1&self_learns=0"
+       f"&protocol_version={PROTOCOL_VERSION}&n_obs={N_OBS}&n_actions={N_ACTIONS}"
+       + (f"&operator={OP}" if OP else ""))
 
 
 def _ssl_ctx():
