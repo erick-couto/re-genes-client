@@ -2,9 +2,10 @@
 import os
 import sys
 
-# torna o SDK (regenes_agent.py, na pasta pai) e este diretório importáveis
+# torna o SDK (regenes_agent.py, na RAIZ do repo) e este diretório importáveis
+# (quarentena #10: o dir subiu um nível -> legacy/, então a raiz fica dois níveis acima)
 _HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(_HERE))  # pai -> regenes_agent
+sys.path.insert(0, os.path.dirname(os.path.dirname(_HERE)))  # raiz -> regenes_agent
 sys.path.insert(0, _HERE)                    # este dir -> client_neat / neat_agent
 
 from regenes_agent import run

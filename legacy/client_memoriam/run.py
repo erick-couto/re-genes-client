@@ -2,8 +2,9 @@
 import os
 import sys
 
+# quarentena #10: a raiz do repo (regenes_agent.py) fica dois níveis acima
 _HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(_HERE))  # pai -> regenes_agent
+sys.path.insert(0, os.path.dirname(os.path.dirname(_HERE)))  # raiz -> regenes_agent
 sys.path.insert(0, _HERE)                    # este dir -> client_memoriam / memoriam_agent
 
 from regenes_agent import run
