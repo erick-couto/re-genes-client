@@ -191,8 +191,12 @@ async def run_one(idx: int):
                 # §24 #4: o funcional do CPPN com a MESMA régua do nativo (o config memoizado
                 # neste processo é o do CPPN — saídas = pesos + LEO). genes = genoma do CPPN
                 # (o "DNA" que o §21 cobra): até aqui o HyperNEAT não reportava e pagava ZERO.
+                # #34 (auditoria 15/08): genes usa a MESMA régua do nativo — TODAS as
+                # conexões, habilitadas ou não (host.py: len(nodes)+len(connections)).
+                # Antes: cppn_nodes+cppn_conns (só habilitadas) — sub-reportava 1-6 genes
+                # e sub-pagava o §21 na direção do incentivo que o world.py:1832 registra.
                 fnodes, fconns = nb.functional_complexity(g)
-                genes = cppn_nodes + cppn_conns
+                genes = len(g.nodes) + len(g.connections)
                 acuity = acuity_params(n_conns)
 
                 # Reporta o CPPN (o genoma) como blob opaco. nodes/conns = do SUBSTRATO (a rede
