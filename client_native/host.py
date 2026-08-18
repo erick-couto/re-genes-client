@@ -37,7 +37,7 @@ OP = os.getenv("REGENES_OPERATOR", "")  # dono da linhagem (carimbo na genealogi
 # encode() abaixo monta (8 escalares + 6×31 do cone); n_actions = len(ACTIONS).
 # Os três valores andam juntos com o encode/ACTIONS: se o shape mudar, muda aqui.
 PROTOCOL_VERSION = 5
-N_OBS = 194
+N_OBS = 198
 N_ACTIONS = 7
 URL = (BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_topology"
        "&wants_brain=1&self_learns=0"
@@ -119,9 +119,10 @@ def _blur(row, P):
 # Encoding v3 EGOCÊNTRICO: 161 = bias + energy + stomach + ingested + MARCA-PASSO(sin,cos)
 # + 5 canais x 31 do CONE, BORRADOS pela acuidade do cérebro (desfoque contínuo, igual em todos).
 def encode(vision, energy, stomach, stomach_size, ingested, pace_sin, pace_cos, acuity,
-           damage=0.0, impact=0.0):
+           damage=0.0, impact=0.0,
+           moved_self=0.0, moved_passive=0.0, contact_body=0.0, contact_wall=0.0):
     if not vision or len(vision) < 6 or len(vision[0]) < 31:
-        return [0.0] * 194
+        return [0.0] * 198
     P = acuity[0]
     ss = stomach_size or 1.0
     # §26: damage/impact = FATO BRUTO interoceptivo (dano de mordida e impacto de colisão
@@ -131,7 +132,16 @@ def encode(vision, energy, stomach, stomach_size, ingested, pace_sin, pace_cos, 
     # idioma de normalização. Substitui a endorfina que o executor FABRICAVA (pico +100 por
     # delta de energia, decaimento, penalidade de fome): estado interno inventado, não fato.
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, min(1.0, ingested / ss),
-           pace_sin, pace_cos, min(1.0, damage / ss), min(1.0, impact / ss)]
+           pace_sin, pace_cos, min(1.0, damage / ss), min(1.0, impact / ss),
+           # §50/§51 (#43): quatro fatos que o mundo passou a entregar. Ja chegam
+           # normalizados (bits e fracao sobre 4), entao NAO passam pelo estomago.
+           #   moved_self/moved_passive: PROPRIOCEPCAO. A rede e feedforward, sem
+           #     memoria — sem estes bits, "andei" e "esbarrei num corpo" tem o mesmo
+           #     vetor de entrada, e ser deslocada por forca externa era invisivel.
+           #   contact_body/contact_wall: PELE. Fracao das 4 ortogonais ocupadas,
+           #     360 graus, independente do heading. O cone e OLHO e nao ve atras;
+           #     estar cercada e exatamente quando a informacao esta fora do cone.
+           moved_self, moved_passive, contact_body, contact_wall]
     # §23: 6º canal (sangue) entra como o cheiro — traço QUÍMICO, legível por qualquer cérebro.
     for ch in range(6):
         inp.extend(_blur(vision[ch], P))
@@ -253,7 +263,11 @@ async def run_one(idx: int):
                         inp = encode(msg.get("vision"), energy, stomach, stomach_size,
                                      msg.get("ingested", 0.0),
                                      msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity,
-                                     damage=msg.get("damage", 0.0), impact=msg.get("impact", 0.0))
+                                     damage=msg.get("damage", 0.0), impact=msg.get("impact", 0.0),
+                                     moved_self=msg.get("moved_self", 0.0),
+                                     moved_passive=msg.get("moved_passive", 0.0),
+                                     contact_body=msg.get("contact_body", 0.0),
+                                     contact_wall=msg.get("contact_wall", 0.0))
                         out = net.activate(inp)
                         a = decide(out)
                         await ws.send(json.dumps(ACTIONS[a]))

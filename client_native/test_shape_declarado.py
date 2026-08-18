@@ -45,14 +45,14 @@ def test_declaracao_presente_na_url():
     for hx in HOSTS:
         d = _declarado(hx)
         assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "5", hx.__name__
-        assert d["n_obs"] == str(hx.N_OBS) == "194", hx.__name__
+        assert d["n_obs"] == str(hx.N_OBS) == "198", hx.__name__
         assert d["n_actions"] == str(hx.N_ACTIONS) == "7", hx.__name__
 
 
 def test_n_obs_e_o_vetor_real():
     """O n_obs declarado é o que o encode() de fato monta — sem letra morta."""
     for hx in HOSTS:
-        assert len(_encode(hx)) == hx.N_OBS == 194, hx.__name__
+        assert len(_encode(hx)) == hx.N_OBS == 198, hx.__name__
 
 
 def test_n_actions_e_a_tabela_real():
@@ -80,3 +80,30 @@ if __name__ == "__main__":
             print("ERRO", t.__name__, "->", type(e).__name__, e)
     print(f"\n{ok}/{len(testes)} testes passaram.")
     sys.exit(0 if ok == len(testes) else 1)
+
+
+def test_escalares_novos_do_43_entram_sem_normalizacao():
+    """§50/§51 (#43): os quatro fatos novos (propriocepção do desfecho + pele) já chegam
+    normalizados — bits em {0,1} e fração sobre 4 — então NÃO passam pelo estômago como
+    damage/impact/ingested. Se alguém os dividir por `ss`, a pele de um corpo grande vira
+    zero e o canal morre em silêncio, que é exatamente o defeito que o #41 achou na régua
+    da comida."""
+    for hx in (hn, hh):
+        ac = hx.acuity_params(60)
+        vis = [[0.0] * 31 for _ in range(6)]
+        inp = hx.encode(vis, 30.0, 0.0, 500.0, 0.0, 0.0, 1.0, ac,   # estômago GRANDE de propósito
+                        moved_self=1.0, moved_passive=1.0,
+                        contact_body=0.75, contact_wall=0.25)
+        assert inp[8] == 1.0, f"{hx.__name__}: moved_self deformado"
+        assert inp[9] == 1.0, f"{hx.__name__}: moved_passive deformado"
+        assert inp[10] == 0.75, f"{hx.__name__}: contact_body deformado"
+        assert inp[11] == 0.25, f"{hx.__name__}: contact_wall deformado"
+
+
+def test_escalares_novos_tem_default_zero():
+    """Cliente que não recebeu os campos (mundo antigo) não pode explodir nem inventar sinal."""
+    for hx in (hn, hh):
+        ac = hx.acuity_params(60)
+        inp = hx.encode([[0.0] * 31 for _ in range(6)], 30.0, 0.0, 50.0, 0.0, 0.0, 1.0, ac)
+        assert inp[8:12] == [0.0, 0.0, 0.0, 0.0], f"{hx.__name__}: default nao e zero"
+        assert len(inp) == 198

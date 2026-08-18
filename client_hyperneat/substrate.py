@@ -44,13 +44,18 @@ INPUT_COORDS = []
 # fora do campo visual. §26: damage/impact = fato bruto (dano/impacto sofrido neste tick).
 # R4/#3: ingested idem — quanto o mundo reportou ingerido neste tick (era a endorfina
 # fabricada pelo executor; o mundo descreve, o executor não inventa estado).
-for i in range(8):
-    INPUT_COORDS.append((-1.0 + 2.0 * i / 7.0, -1.2, 0.0))
+# §50/§51 (#43): de 8 para 12 escalares. Os quatro novos (moved_self, moved_passive,
+# contact_body, contact_wall) sao interocepcao/pele — nao tem lugar no cone e ficam na
+# mesma fileira ATRAS do corpo. O espacamento passa de i/7 para i/11, o que MOVE todos os
+# escalares: por isso a mudanca de shape exige RESET (CPPN arquivado geraria peso diferente
+# para a mesma entrada). Com banco vazio, o custo e zero.
+for i in range(12):
+    INPUT_COORDS.append((-1.0 + 2.0 * i / 11.0, -1.2, 0.0))
 # 6 canais x 31 células do cone: x = lateral (esq<0, dir>0), y = distância à frente
 for ch in range(6):
     for (f, l) in CONE_OFFSETS:
         INPUT_COORDS.append((l / 3.0, f / 6.0, CHANNEL_Z[ch]))
-assert len(INPUT_COORDS) == 194, len(INPUT_COORDS)
+assert len(INPUT_COORDS) == 198, len(INPUT_COORDS)
 
 # --- SAÍDAS (7): posicionadas pelo SIGNIFICADO DIRECIONAL da ação ---
 # É isto que deixa a regra geométrica existir: "vira-esq" mora à esquerda (x=-1), então o CPPN

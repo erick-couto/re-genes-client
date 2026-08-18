@@ -4,7 +4,7 @@ FABRICADA pelo executor (pico +100 por delta de energia, decaimento -0,2/tick, p
 de fome -2,0 — estado interno inventado) e passou a ser o FATO BRUTO `ingested` do mundo:
 quanto entrou no estômago neste tick, normalizado pelo PRÓPRIO stomach_size — exatamente o
 idioma que o encode já usava para damage/impact (§26). Sem estado: um tick não vaza para o
-seguinte. Shape (194) e ordem são contrato e não mudam.
+seguinte. Shape (198) e ordem são contrato e não mudam.
 
 Roda com:  pytest test_escalar_ingested.py   (ou: python test_escalar_ingested.py)
 """
@@ -60,9 +60,9 @@ def test_nao_vaza_entre_ticks():
         assert _encode(hx, 0.0)[3] == 0.0, hx.__name__
 
 
-def test_shape_194_preservado():
+def test_shape_198_preservado():
     for hx in HOSTS:
-        assert len(_encode(hx, 25.0)) == 194, hx.__name__
+        assert len(_encode(hx, 25.0)) == 198, hx.__name__
 
 
 def test_paridade_dos_dois_executores():
