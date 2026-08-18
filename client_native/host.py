@@ -36,7 +36,7 @@ OP = os.getenv("REGENES_OPERATOR", "")  # dono da linhagem (carimbo na genealogi
 # /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). n_obs = o que o
 # encode() abaixo monta (8 escalares + 6×31 do cone); n_actions = len(ACTIONS).
 # Os três valores andam juntos com o encode/ACTIONS: se o shape mudar, muda aqui.
-PROTOCOL_VERSION = 5
+PROTOCOL_VERSION = 6
 N_OBS = 198
 N_ACTIONS = 7
 URL = (BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_topology"

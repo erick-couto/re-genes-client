@@ -48,7 +48,7 @@ OP = os.getenv("REGENES_OPERATOR", "")
 # §46 (R-SHAPE, card #38): o contrato DECLARADO no join — o mundo valida contra o
 # /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). MESMO shape do
 # nativo (§15/§16): encode() monta 194 (8 escalares + 6×31 do cone), ACTIONS tem 7.
-PROTOCOL_VERSION = 5
+PROTOCOL_VERSION = 6
 N_OBS = 198
 N_ACTIONS = 7
 URL = (BASE.rstrip("/") + "/ws/join?species=HyperNEAT&paradigm=hyperneat_cppn"

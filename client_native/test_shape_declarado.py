@@ -44,7 +44,7 @@ def _encode(hx):
 def test_declaracao_presente_na_url():
     for hx in HOSTS:
         d = _declarado(hx)
-        assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "5", hx.__name__
+        assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "6", hx.__name__
         assert d["n_obs"] == str(hx.N_OBS) == "198", hx.__name__
         assert d["n_actions"] == str(hx.N_ACTIONS) == "7", hx.__name__
 

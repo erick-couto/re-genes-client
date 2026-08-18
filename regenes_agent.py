@@ -36,11 +36,15 @@ import websockets
 SERVER_URL = os.getenv("REGENES_SERVER", "wss://re-genes.is")
 
 # §46 (R-SHAPE, card #38): contrato que a runtime DECLARA no join — o mundo valida
-# contra o /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). v5:
-# 194 observações (6×31 cone + 8 escalares), 7 ações egocêntricas — o fallback de
+# contra o /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). v6:
+# 198 observações (6×31 cone + 12 escalares), 7 ações egocêntricas — o fallback de
 # comandos em _run_one segue este mesmo shape.
-PROTOCOL_VERSION = 5
-N_OBS = 194
+#
+# ⚠️ n_obs é o que o MUNDO manda, não o que este SDK repassa ao decide(): o obs montado
+# em _run_one expõe 6 dos 12 escalares (faltam stomach_size, damage, impact, ingested e
+# os quatro da §50/§51). Lacuna PRÉ-EXISTENTE — quem precisar deles lê msg direto.
+PROTOCOL_VERSION = 6
+N_OBS = 198
 N_ACTIONS = 7
 
 
