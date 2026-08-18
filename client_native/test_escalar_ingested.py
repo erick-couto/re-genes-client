@@ -24,11 +24,14 @@ finally:
     sys.argv = _argv
 
 HOSTS = (hn, hh)
-VIS = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(6)]
+# 52 (#44): o cone tem 4 canais (visao) e o quimico 3x9 (contato). VIS/QUI vem daqui
+# para nenhum teste fixar a contagem a mao.
+VIS = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(4)]
+QUI = [[((i * 7 + ch) % 5) / 5.0 for i in range(9)] for ch in range(3)]
 
 
 def _encode(hx, ingested, stomach_size=50.0, conns=338):
-    return hx.encode(VIS, 30.0, 5.0, stomach_size, ingested, 0.0, 1.0,
+    return hx.encode(VIS, QUI, 30.0, 5.0, stomach_size, ingested, 0.0, 1.0,
                      hx.acuity_params(conns))
 
 
@@ -60,9 +63,9 @@ def test_nao_vaza_entre_ticks():
         assert _encode(hx, 0.0)[3] == 0.0, hx.__name__
 
 
-def test_shape_198_preservado():
+def test_shape_163_preservado():
     for hx in HOSTS:
-        assert len(_encode(hx, 25.0)) == 198, hx.__name__
+        assert len(_encode(hx, 25.0)) == 163, hx.__name__
 
 
 def test_paridade_dos_dois_executores():

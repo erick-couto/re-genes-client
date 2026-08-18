@@ -116,7 +116,7 @@ node_delete_prob        = 0.0
 # num_hidden=0: NASCER MAGRO -- sem camada oculta semeada; a profundidade emerge por node_add
 # sob selecao (NEAT canonico). Era 8 (semeadura imposta); ver Structural mutation options.
 num_hidden              = 0
-num_inputs              = 198
+num_inputs              = 163
 num_outputs             = 7
 
 [DefaultSpeciesSet]

@@ -48,8 +48,8 @@ OP = os.getenv("REGENES_OPERATOR", "")
 # §46 (R-SHAPE, card #38): o contrato DECLARADO no join — o mundo valida contra o
 # /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). MESMO shape do
 # nativo (§15/§16): encode() monta 194 (8 escalares + 6×31 do cone), ACTIONS tem 7.
-PROTOCOL_VERSION = 6
-N_OBS = 198
+PROTOCOL_VERSION = 7
+N_OBS = 163
 N_ACTIONS = 7
 URL = (BASE.rstrip("/") + "/ws/join?species=HyperNEAT&paradigm=hyperneat_cppn"
        "&wants_brain=1&self_learns=0"
@@ -101,13 +101,16 @@ def _blur(row, P):
     return cone_psf.blur(row, P)
 
 
-def encode(vision, energy, stomach, stomach_size, ingested, pace_sin, pace_cos, acuity,
+def encode(vision, chemical, energy, stomach, stomach_size, ingested, pace_sin, pace_cos,
+           acuity,
            damage=0.0, impact=0.0,
            moved_self=0.0, moved_passive=0.0, contact_body=0.0, contact_wall=0.0):
     """IDÊNTICO ao do nativo — mesma ordem das 194 entradas. Tem que ser: o substrato mapeia
     coordenada por ÍNDICE (substrate.INPUT_COORDS segue esta mesma ordem)."""
-    if not vision or len(vision) < 6 or len(vision[0]) < 31:
-        return [0.0] * 198
+    if not vision or len(vision) < 4 or len(vision[0]) < 31:
+        return [0.0] * 163
+    if not chemical or len(chemical) < 3 or len(chemical[0]) < 9:
+        return [0.0] * 163
     P = acuity[0]
     ss = stomach_size or 1.0
     # §26: damage/impact = fato bruto interoceptivo, normalizado pelo próprio estômago.
@@ -124,8 +127,15 @@ def encode(vision, energy, stomach, stomach_size, ingested, pace_sin, pace_cos, 
            #     estar cercada e exatamente quando a informacao esta fora do cone.
            moved_self, moved_passive, contact_body, contact_wall]
     # §23: 6º canal (sangue) como o cheiro — traço químico, legível por qualquer cérebro.
-    for ch in range(6):
+    # 52 (#44): o cone tem 4 canais de VISAO (obstaculo, corpo, perigo, comida). O
+    # borrao da acuidade e a PSF geometrica DO CONE — do olho. Nao se aplica a quimico.
+    for ch in range(4):
         inp.extend(_blur(vision[ch], P))
+    # 52: campos QUIMICOS por CONTATO — 3 canais x 9 celulas (a propria + as 8 vizinhas,
+    # em coordenada de corpo). SEM borrao: acuidade e propriedade do olho, e este bloco
+    # nao passa pelo olho. Valor bruto, como o mundo entrega.
+    for ch in range(3):
+        inp.extend(chemical[ch])
     return inp
 
 
@@ -234,7 +244,8 @@ async def run_one(idx: int):
                         stomach = msg.get("stomach", 0)
                         # R4/#3: ingested vem do TICK (fato do mundo; 0.0 na ausência do campo).
                         # Sem estado, sem decaimento: um tick não vaza para o seguinte.
-                        inp = encode(msg.get("vision"), energy, stomach, stomach_size,
+                        inp = encode(msg.get("vision"), msg.get("chemical"),
+                                     energy, stomach, stomach_size,
                                      msg.get("ingested", 0.0),
                                      msg.get("pace_sin", 0.0), msg.get("pace_cos", 0.0), acuity,
                                      damage=msg.get("damage", 0.0), impact=msg.get("impact", 0.0),

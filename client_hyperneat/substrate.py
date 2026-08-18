@@ -35,7 +35,17 @@ CONE_OFFSETS = _build_cone()               # 31 células, mesma ORDEM do mundo
 # canal -> profundidade z. Separa as 6 modalidades em "camadas" do hipercubo, então o CPPN
 # pode tratar cheiro e obstáculo com regras diferentes (ou iguais, se a seleção preferir).
 # §23: sangue (memória de violência) ganha a camada z=+1.0 — contato/consequência.
-CHANNEL_Z = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]    # obstáculo, cheiro, inimigo, perigo, comida, sangue
+# 52 (#44): o cone ficou com 4 canais de visao; cheiro e sangue foram para o bloco quimico.
+# 52 (#44): as 9 celulas do olfato por CONTATO, na MESMA ORDEM do mundo
+# (world.py CHEM_OFFSETS). Offsets (frente, lateral) em coordenada de CORPO: a propria
+# celula e as 8 vizinhas, diagonais inclusive. Se esta lista divergir da do mundo, cada
+# entrada quimica cai numa coordenada errada do substrato — e nada avisa.
+CHEM_OFFSETS = [(0, 0),
+                (1, 0), (1, 1), (0, 1), (-1, 1),
+                (-1, 0), (-1, -1), (0, -1), (1, -1)]
+
+CHANNEL_Z = [-1.0, -0.4, 0.4, 1.0]               # obstaculo, corpo, perigo, comida
+CHEM_Z = [-1.0, 0.0, 1.0]                        # cheiro-planta, cheiro-carne, sangue
 
 # --- ENTRADAS (194, na MESMA ordem do encode do host) ---
 INPUT_COORDS = []
@@ -52,10 +62,17 @@ INPUT_COORDS = []
 for i in range(12):
     INPUT_COORDS.append((-1.0 + 2.0 * i / 11.0, -1.2, 0.0))
 # 6 canais x 31 células do cone: x = lateral (esq<0, dir>0), y = distância à frente
-for ch in range(6):
+# 52 (#44): o cone perdeu cheiro e sangue — sobram 4 canais de VISAO.
+for ch in range(4):
     for (f, l) in CONE_OFFSETS:
         INPUT_COORDS.append((l / 3.0, f / 6.0, CHANNEL_Z[ch]))
-assert len(INPUT_COORDS) == 198, len(INPUT_COORDS)
+# 52: campos QUIMICOS por CONTATO — 3 canais x 9 celulas que encostam nela. As coordenadas
+# sao os proprios offsets (frente, lateral) do corpo, na mesma escala do cone, num plano z
+# proprio: quimico nao e visao e nao deve compartilhar plano com ela.
+for ch in range(3):
+    for (f, l) in CHEM_OFFSETS:
+        INPUT_COORDS.append((l / 3.0, f / 6.0, CHEM_Z[ch]))
+assert len(INPUT_COORDS) == 163, len(INPUT_COORDS)
 
 # --- SAÍDAS (7): posicionadas pelo SIGNIFICADO DIRECIONAL da ação ---
 # É isto que deixa a regra geométrica existir: "vira-esq" mora à esquerda (x=-1), então o CPPN

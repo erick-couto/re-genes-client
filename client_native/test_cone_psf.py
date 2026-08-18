@@ -173,11 +173,12 @@ def test_os_dois_executores_usam_a_mesma_psf():
         import host_hyper as hh
     finally:
         sys.argv = argv
-    vis = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(6)]
+    vis = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(4)]
+    qui = [[((i * 7 + ch) % 5) / 5.0 for i in range(9)] for ch in range(3)]
     for conns in (0, 60, 338, 600):
-        a = hn.encode(vis, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hn.acuity_params(conns))
-        b = hh.encode(vis, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hh.acuity_params(conns))
-        assert len(a) == len(b) == 198
+        a = hn.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hn.acuity_params(conns))
+        b = hh.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hh.acuity_params(conns))
+        assert len(a) == len(b) == 163
         assert all(abs(x - y) < 1e-12 for x, y in zip(a, b)), f"divergem em conns={conns}"
 
 
@@ -195,16 +196,18 @@ def test_canais_de_predacao_intactos_com_acuidade_baixa():
         import host_hyper as hh
     finally:
         sys.argv = argv
-    vis = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(6)]
+    vis = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(4)]
+    qui = [[((i * 7 + ch) % 5) / 5.0 for i in range(9)] for ch in range(3)]
     for hx in (hn, hh):
         ac = hx.acuity_params(0)                    # A = 0 — o caso que o fade zerava por inteiro
         assert ac[2] == 0.0
-        inp = hx.encode(vis, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, ac)
-        for ch in (2, 3):
+        inp = hx.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, ac)
+        for ch in (2, 3):   # 52: perigo e comida — os dois ultimos do cone
             esperado = blur(vis[ch], ac[0])
-            # §50/§51 (#43): o bloco de escalares foi de 8 para 12 (propriocepcao + pele),
-            # entao o cone comeca em 12. Derivado, nao cravado, para nao quebrar de novo.
-            n_esc = len(inp) - 6 * 31
+            # 52 (#44): o vetor agora e [escalares][cone 4x31][quimico 3x9]. O cone comeca
+            # depois dos escalares — DERIVADO, nunca cravado (foi assim que o painel do
+            # viewer quebrou tres vezes).
+            n_esc = len(inp) - 4 * 31 - 3 * 9
             obtido = inp[n_esc + ch * 31: n_esc + (ch + 1) * 31]
             assert all(abs(x - y) < 1e-12 for x, y in zip(obtido, esperado)), \
                 f"{hx.__name__} canal {ch}: o executor ainda edita a observação"

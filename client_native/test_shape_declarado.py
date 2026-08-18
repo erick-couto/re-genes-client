@@ -28,7 +28,10 @@ finally:
     sys.argv = _argv
 
 HOSTS = (hn, hh)
-VIS = [[((i * 5 + ch) % 13) / 13.0 for i in range(31)] for ch in range(6)]
+# 52 (#44): o cone tem 4 canais (visao) e o quimico 3x9 (contato). VIS/QUI vem daqui
+# para nenhum teste fixar a contagem a mao.
+VIS = [[((i * 5 + ch) % 13) / 13.0 for i in range(31)] for ch in range(4)]
+QUI = [[((i * 3 + ch) % 7) / 7.0 for i in range(9)] for ch in range(3)]
 
 
 def _declarado(hx):
@@ -38,21 +41,21 @@ def _declarado(hx):
 
 
 def _encode(hx):
-    return hx.encode(VIS, 30.0, 5.0, 50.0, 12.5, 0.0, 1.0, hx.acuity_params(338))
+    return hx.encode(VIS, QUI, 30.0, 5.0, 50.0, 12.5, 0.0, 1.0, hx.acuity_params(338))
 
 
 def test_declaracao_presente_na_url():
     for hx in HOSTS:
         d = _declarado(hx)
-        assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "6", hx.__name__
-        assert d["n_obs"] == str(hx.N_OBS) == "198", hx.__name__
+        assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "7", hx.__name__
+        assert d["n_obs"] == str(hx.N_OBS) == "163", hx.__name__
         assert d["n_actions"] == str(hx.N_ACTIONS) == "7", hx.__name__
 
 
 def test_n_obs_e_o_vetor_real():
     """O n_obs declarado é o que o encode() de fato monta — sem letra morta."""
     for hx in HOSTS:
-        assert len(_encode(hx)) == hx.N_OBS == 198, hx.__name__
+        assert len(_encode(hx)) == hx.N_OBS == 163, hx.__name__
 
 
 def test_n_actions_e_a_tabela_real():
@@ -90,8 +93,9 @@ def test_escalares_novos_do_43_entram_sem_normalizacao():
     da comida."""
     for hx in (hn, hh):
         ac = hx.acuity_params(60)
-        vis = [[0.0] * 31 for _ in range(6)]
-        inp = hx.encode(vis, 30.0, 0.0, 500.0, 0.0, 0.0, 1.0, ac,   # estômago GRANDE de propósito
+        vis = [[0.0] * 31 for _ in range(4)]
+        qui = [[0.0] * 9 for _ in range(3)]
+        inp = hx.encode(vis, qui, 30.0, 0.0, 500.0, 0.0, 0.0, 1.0, ac,   # estômago GRANDE de propósito
                         moved_self=1.0, moved_passive=1.0,
                         contact_body=0.75, contact_wall=0.25)
         assert inp[8] == 1.0, f"{hx.__name__}: moved_self deformado"
@@ -104,6 +108,7 @@ def test_escalares_novos_tem_default_zero():
     """Cliente que não recebeu os campos (mundo antigo) não pode explodir nem inventar sinal."""
     for hx in (hn, hh):
         ac = hx.acuity_params(60)
-        inp = hx.encode([[0.0] * 31 for _ in range(6)], 30.0, 0.0, 50.0, 0.0, 0.0, 1.0, ac)
+        inp = hx.encode([[0.0] * 31 for _ in range(4)], [[0.0] * 9 for _ in range(3)],
+                            30.0, 0.0, 50.0, 0.0, 0.0, 1.0, ac)
         assert inp[8:12] == [0.0, 0.0, 0.0, 0.0], f"{hx.__name__}: default nao e zero"
-        assert len(inp) == 198
+        assert len(inp) == 163
