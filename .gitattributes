@@ -1,0 +1,8 @@
+# Estes scripts rodam no Linux (Luna e RackNerd) e chegam lá por rsync/scp a partir
+# de um checkout Windows. Com core.autocrlf=true o checkout escreveria CRLF no disco
+# e o shebang viraria "bash\r: bad interpreter" no destino. Prender eol=lf.
+*.sh   text eol=lf
+*.py   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+Jenkinsfile text eol=lf
