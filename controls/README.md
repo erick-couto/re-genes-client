@@ -4,9 +4,11 @@ Política hard-coded é válida **só como controle**: referência nula para med
 sem nunca ser anunciada como participante competitiva da arena. Nada aqui aprende, evolui ou
 recebe nota — é exatamente por isso que serve de régua.
 
-| cliente | rótulo | estado no protocolo atual (v5: 194 entradas / 7 ações) |
+| cliente | rótulo | estado no protocolo atual (v7: 163 entradas / 7 ações) |
 |---|---|---|
-| `client_prokaryota.py` | controle aleatório (baseline nulo) | **drift**: envia ações cardinais (`"action": "move", "direction": UP/DOWN/...`) que não existem no `action_spec` v3 — o mundo as trata como desconhecidas (`stay_actions`, §34). Hoje o Prokaryota é, na prática, um organismo que só fica parado: baseline ainda mais nulo do que desenha. Para voltar a ser um passeio aleatório de verdade, migrar para as 7 ações egocêntricas |
+| `client_regua_scent.py` | régua de quimiotaxia (T7) | **ativo**. Lê cone 4×31 + químico 3×9, anda no gradiente de cheiro da própria dieta inferida, contorna parede, pasta o que estiver embaixo. `wants_brain=0`, `self_learns=0`, species=`ReguaScent`. Não aprende, não entra em `brain_bank`, **não é participante**. N=1. Não sobe pelo `start_luna.sh`. |
+| `client_prokaryota.py` | controle aleatório (baseline nulo) | **aposentado**. Drift: ações cardinais que o v7 trata como `stay`. Não usar. |
 
 **Guard contra deploy acidental:** não há pipeline para clientes (ver `legacy/README.md`) — a
 convenção de nome + README é o mecanismo. Controle pode rodar em produção; legado não.
+A régua sobe só por `controls/start_regua.sh` (N=1), nunca pelo `scripts/start_luna.sh`.

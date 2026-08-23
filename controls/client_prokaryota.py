@@ -1,3 +1,8 @@
+"""APOSENTADO — não é régua e não é baseline.
+
+Envia ações cardinais (`move`/`UP`) que o action_spec v7 não tem. O mundo conta
+`stay_actions`. A régua que substitui isto é `client_regua_scent.py` (T7).
+"""
 import asyncio
 import websockets
 import json
