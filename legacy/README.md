@@ -19,12 +19,12 @@ legado, roda sabendo.
 
 ## Inventário (verificado no fonte em 15/08/2026)
 
-| cliente | rótulo | entradas que monta / ações | protocolo atual (v5: 194/7) | o que viola |
+| cliente | rótulo | entradas que monta / ações | protocolo atual (v7: 163/7) | o que viola |
 |---|---|---|---|---|
-| `client_neat/` | legado com fitness explícita | **104** entradas montadas (bias+energy+stomach+endorfina + 4 canais × 25 células) contra config `num_inputs = 161` (`client_neat/config-feedforward:87`) | 194 entradas, 7 ações egocêntricas | fitness explícita em `on_death` (pesos FOOD/ENERGY/SURVIVAL/EXPLORE, `neat_agent.py`); **endorfina fabricada** (+0,3 por mover, +5,0 por célula nova, +100 por ganho de energia — `neat_agent.py:84-89`); comentários de direção de comportamento no legado standalone ("REHAB: Massive reward to make eating the primary goal", `client_neat.py:374`); o standalone usa ações CARDINAIS (UP/DOWN/LEFT/RIGHT/STAY, `client_neat.py:294`) que o mundo de hoje trata como desconhecidas |
-| `client_es/` | legado com fitness explícita | **159** entradas (5 canais × 31 + energy/stomach/marca-passo — falta o canal de sangue e o escalar `ingested`) | 194 entradas, 7 ações | fitness explícita por perturbação (ES reporta fitness, `es_agent.py`); shape antigo (v6, pré-§43) |
+| `client_neat/` | legado com fitness explícita | **104** entradas montadas (bias+energy+stomach+endorfina + 4 canais × 25 células) contra config `num_inputs = 161` (`client_neat/config-feedforward:87`) | 163 entradas, 7 ações egocêntricas | fitness explícita em `on_death` (pesos FOOD/ENERGY/SURVIVAL/EXPLORE, `neat_agent.py`); **endorfina fabricada** (+0,3 por mover, +5,0 por célula nova, +100 por ganho de energia — `neat_agent.py:84-89`); comentários de direção de comportamento no legado standalone ("REHAB: Massive reward to make eating the primary goal", `client_neat.py:374`); o standalone usa ações CARDINAIS (UP/DOWN/LEFT/RIGHT/STAY, `client_neat.py:294`) que o mundo de hoje trata como desconhecidas |
+| `client_es/` | legado com fitness explícita | **159** entradas (5 canais × 31 + energy/stomach/marca-passo — falta o canal de sangue e o escalar `ingested`) | 163 entradas, 7 ações | fitness explícita por perturbação (ES reporta fitness, `es_agent.py`); shape antigo (v6, pré-§43) |
 | `client_memoriam/` | **controle/baseline Lamarckiano** (não apenas "legado") | **9 ações cardinais** (`client_memoriam.py:57` — espaço de ações v2: UP/DOWN/LEFT/RIGHT/STAY/ATK_*) | 7 ações egocêntricas | **herança do adquirido**: Q-table por fenótipo persiste ENTRE VIDAS (`memoriam_agent.py:6-7`, `self_learns=True`) — Lamarckismo, explicitamente fora do modelo Baldwiniano canônico (issue #26). As tabelas persistidas (`qtable_memoriam_*.json`) são o artefato da herança |
-| `client.py` | legado (cliente-raiz histórico) | ações cardinais aleatórias (`"action": "move", "direction": ...`) e leitura de STATE como se fosse TICK | protocolo v5 | política aleatória de protocolo antigo: não lê WELCOME/TICK corretamente, none das ações existe no `action_spec` v3 |
+| `client.py` | legado (cliente-raiz histórico) | ações cardinais aleatórias (`"action": "move", "direction": ...`) e leitura de STATE como se fosse TICK | protocolo v7 (ele fala v5) | política aleatória de protocolo antigo: não lê WELCOME/TICK corretamente, none das ações existe no `action_spec` v3 |
 
 **Sobre o Memoriam:** o rótulo correto, definido na auditoria do card #10, é
 **"controle/baseline Lamarckiano"**: ele vale como referência comparativa EXATAMENTE porque
@@ -38,6 +38,6 @@ próprio rótulo). Comandos fora do `action_spec` v3 viram `stay` (contados em `
 §34 do mundo). Ou seja: um legado em produção não quebra o mundo, mas ocupa slot, come comida e
 polui a telemetria — por isso fica quarentenado.
 
-**Como reabilitar (se um dia):** reescrever para o protocolo v5 (194 entradas, 7 ações
+**Como reabilitar (se um dia):** reescrever para o protocolo v7 (163 entradas, 7 ações
 egocêntricas, `regenes_agent.py` na raiz), remover toda fitness/valência fabricada e toda
 herança entre vidas, e passar pelo crivo do card antes de voltar à arena.
