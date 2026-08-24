@@ -28,6 +28,7 @@ import time
 import websockets
 import neat_brain as nb
 import cone_psf                      # R-BLUR: PSF na geometria do cone (compartilhado c/ o hyper)
+from decide_action import NULL_EPS, decide  # efetor compartilhado c/ HyperNEAT (5-bis)
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
@@ -167,32 +168,6 @@ ACTIONS = [
     {"action": "attack"},               # 5: morde a célula à frente
     {"action": "push"},                 # 6: empurra a célula à frente (sem dano; massa decide)
 ]
-
-
-NULL_EPS = 0.05   # abaixo disto, a saída é ruído: o cérebro não disse nada
-
-
-def decide(out):
-    """Saídas da rede -> índice da ação. Três casos, e cada um tem uma razão física.
-
-    1) SEM SINAL (tudo ~0) -> FICA. Nervo desconectado não dispara músculo: sem comando motor,
-       o bicho não se mexe. Antes, um cérebro SEM conexões caía no argmax e ganhava "frente"
-       DE GRAÇA — só porque frente é o índice 0. Um passeio em linha reta de presente, dado
-       pela ORDEM em que as ações foram listadas. Era o mesmo viés-índice-0 que a gente já
-       tinha consertado pro empate saturado, escancarado no caso "tudo zero". Medido: o
-       cérebro-zero CONQUISTOU o HyperNEAT (31 de 39 provados, mediana 0 conexões) — não por
-       ser estratégia, mas por bug de desempate. Quem não paga por um cérebro não age.
-    2) EMPATE SATURADO (topo >=0.9 e várias coladas nele) -> sorteio uniforme. O cérebro grita
-       tudo ao mesmo tempo e genuinamente não distingue; escolher por índice seria viés.
-    3) Decisão graduada ou vencedor claro -> argmax, respeitando o gradiente.
-    """
-    mx = max(out)
-    if max(abs(mx), abs(min(out))) < NULL_EPS:
-        return 4                                    # "stay": o cérebro não disse nada
-    near = [i for i in range(len(out)) if out[i] >= mx - 0.05]
-    if len(near) > 1 and mx >= 0.9:
-        return random.choice(near)
-    return max(range(len(out)), key=lambda i: out[i])
 
 
 async def run_one(idx: int):

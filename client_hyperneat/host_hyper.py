@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import neat_brain as nb          # noqa: E402
 import substrate as sub          # noqa: E402
 import cone_psf                  # noqa: E402  R-BLUR: MESMA PSF do nativo (encode idêntico)
+from decide_action import NULL_EPS, decide  # noqa: E402  efetor = Native (5-bis / §14.5)
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
@@ -148,29 +149,6 @@ ACTIONS = [
     {"action": "attack"},
     {"action": "push"},
 ]
-
-
-NULL_EPS = 0.05   # abaixo disto, a saída é ruído: o cérebro não disse nada
-
-
-def decide(out):
-    """Saídas do substrato -> índice da ação. MESMO contrato do client_native (§16.5).
-
-    1) SEM SINAL (tudo ~0) -> FICA. Nervo desconectado não dispara músculo. Isto importa MUITO
-       aqui: o LEO pode zerar o substrato inteiro, e o cérebro-zero estava CONQUISTANDO a
-       espécie (31 de 39 provados, mediana 0 conexões) — não por estratégia, mas porque o
-       argmax de [0,0,...] devolve o índice 0, que por acaso é "frente". Ganhava uma caminhada
-       reta de graça e não pagava imposto cerebral. Agora quem não tem cérebro não age.
-    2) EMPATE SATURADO -> sorteio uniforme (§14.5).
-    3) Gradiente -> argmax.
-    """
-    mx = max(out)
-    if max(abs(mx), abs(min(out))) < NULL_EPS:
-        return 4                                    # "stay": o cérebro não disse nada
-    near = [i for i in range(len(out)) if out[i] >= mx - 0.05]
-    if len(near) > 1 and mx >= 0.9:
-        return random.choice(near)
-    return max(range(len(out)), key=lambda i: out[i])
 
 
 async def run_one(idx: int):
