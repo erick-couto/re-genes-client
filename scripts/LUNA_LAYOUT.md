@@ -4,6 +4,9 @@
 > receitas NVENC estão em `LUNA_HANDOFF.md` (na Luna: `/home/ai/HANDOFF.md`).
 > Mundo: compose só em `/home/ai/ameba-server` (não no symlink `regenes/world`).
 > Client e ameba-server **não são git** — deploy por `scp`/`rsync`.
+> **Start de cliente não empilha:** `start_luna.sh` para o par velho (padrão
+> `python -u host.py`, não o caminho) e aborta se ainda houver processo.
+> Esperado: 1 native + 1 hyper. Dois pares = teto 50 + incubadora inchada.
 
 Este arquivo é o índice **na Luna**. No Windows: `AGENTS.md` + `CLAUDE.md` + `LUNA_HANDOFF.md`.
 
