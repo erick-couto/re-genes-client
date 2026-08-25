@@ -162,15 +162,17 @@ def test_shape_preservado():
         assert len(blur([0.5] * 31, psf(s))) == 31
 
 
-def test_os_dois_executores_usam_a_mesma_psf():
-    """Native e HyperNEAT têm de produzir o mesmo encode para a mesma visão."""
+def test_os_tres_executores_usam_a_mesma_psf():
+    """Native, HyperNEAT e GRN têm de produzir o mesmo encode para a mesma visão."""
     raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sys.path.insert(0, os.path.join(raiz, "client_hyperneat"))
+    sys.path.insert(0, os.path.join(raiz, "client_grn"))
     argv = sys.argv[:]
     sys.argv = [argv[0]]
     try:
         import host as hn
         import host_hyper as hh
+        import host_grn as hg
     finally:
         sys.argv = argv
     vis = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(4)]
@@ -178,27 +180,31 @@ def test_os_dois_executores_usam_a_mesma_psf():
     for conns in (0, 60, 338, 600):
         a = hn.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hn.acuity_params(conns))
         b = hh.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hh.acuity_params(conns))
-        assert len(a) == len(b) == 163
-        assert all(abs(x - y) < 1e-12 for x, y in zip(a, b)), f"divergem em conns={conns}"
+        c = hg.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hg.acuity_params(conns))
+        assert len(a) == len(b) == len(c) == 163
+        assert all(abs(x - y) < 1e-12 for x, y in zip(a, b)), f"native/hyper divergem em conns={conns}"
+        assert all(abs(x - y) < 1e-12 for x, y in zip(a, c)), f"native/grn divergem em conns={conns}"
 
 
 def test_canais_de_predacao_intactos_com_acuidade_baixa():
     """R5/#2 (card #2): o executor NÃO edita a observação. Com A=0 (cérebro sem conexões
     funcionais) os canais 2 (inimigo) e 3 (perigo) têm de sair do encode EXATAMENTE como a
-    PSF os borra — o fade pred_w que os zerava para A<0,40 foi removido. Vale para os dois
+    PSF os borra — o fade pred_w que os zerava para A<0,40 foi removido. Vale para os três
     executores (paridade no tratamento dos canais)."""
     raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sys.path.insert(0, os.path.join(raiz, "client_hyperneat"))
+    sys.path.insert(0, os.path.join(raiz, "client_grn"))
     argv = sys.argv[:]
     sys.argv = [argv[0]]
     try:
         import host as hn
         import host_hyper as hh
+        import host_grn as hg
     finally:
         sys.argv = argv
     vis = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(4)]
     qui = [[((i * 7 + ch) % 5) / 5.0 for i in range(9)] for ch in range(3)]
-    for hx in (hn, hh):
+    for hx in (hn, hh, hg):
         ac = hx.acuity_params(0)                    # A = 0 — o caso que o fade zerava por inteiro
         assert ac[2] == 0.0
         inp = hx.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, ac)

@@ -14,16 +14,18 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(raiz, "client_hyperneat"))
+sys.path.insert(0, os.path.join(raiz, "client_grn"))
 
 _argv = sys.argv[:]          # host.py lê sys.argv no import; protege como no test_cone_psf
 sys.argv = [_argv[0]]
 try:
     import host as hn            # noqa: E402
     import host_hyper as hh      # noqa: E402
+    import host_grn as hg        # noqa: E402
 finally:
     sys.argv = _argv
 
-HOSTS = (hn, hh)
+HOSTS = (hn, hh, hg)
 # 52 (#44): o cone tem 4 canais (visao) e o quimico 3x9 (contato). VIS/QUI vem daqui
 # para nenhum teste fixar a contagem a mao.
 VIS = [[((i * 3 + ch) % 11) / 11.0 for i in range(31)] for ch in range(4)]

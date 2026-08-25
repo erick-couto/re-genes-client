@@ -4,9 +4,10 @@
 > receitas NVENC estão em `LUNA_HANDOFF.md` (na Luna: `/home/ai/HANDOFF.md`).
 > Mundo: compose só em `/home/ai/ameba-server` (não no symlink `regenes/world`).
 > Client e ameba-server **não são git** — deploy por `scp`/`rsync`.
-> **Start de cliente não empilha:** `start_luna.sh` para o par velho (padrão
-> `python -u host.py`, não o caminho) e aborta se ainda houver processo.
-> Esperado: 1 native + 1 hyper. Dois pares = teto 50 + incubadora inchada.
+> **Start de cliente não empilha:** `start_luna.sh` para o trio velho (padrão
+> `python -u host.py` / `host_hyper.py` / `host_grn.py`, não o caminho) e aborta
+> se ainda houver processo. Esperado: 1 native + 1 hyper + 1 grn. Cap 60 no
+> checkout do mundo; até o deploy, a Luna ainda é 50.
 
 Este arquivo é o índice **na Luna**. No Windows: `AGENTS.md` + `CLAUDE.md` + `LUNA_HANDOFF.md`.
 
@@ -19,7 +20,7 @@ Este arquivo é o índice **na Luna**. No Windows: `AGENTS.md` + `CLAUDE.md` + `
   ameba-server/             mundo Docker (código + data/ da gênese local)
   regenes/
     world            → ../ameba-server
-    client           Native NEAT + HyperNEAT (venv .venv)
+    client           Native NEAT + HyperNEAT + GRN (venv .venv)
     narrator         narrador (CPU). TTS = TTS_ENGINE no .env (hoje: meça)
     streamer         Chromium+Xvfb+FFmpeg → YouTube
     chatterbox-ptbr  → ../chatterbox-ptbr
@@ -34,7 +35,7 @@ Este arquivo é o índice **na Luna**. No Windows: `AGENTS.md` + `CLAUDE.md` + `
 |---|---|---|
 | mundo | container `ameba_world` | `http://192.168.1.10:8081/` (headless) |
 | viewer | o mesmo processo, `/viewer` | `http://192.168.1.10:8081/viewer` |
-| clientes → mundo | Native 20 + Hyper 20 | `ws://127.0.0.1:8081` (loopback) |
+| clientes → mundo | Native 20 + Hyper 20 + GRN 20 | `ws://127.0.0.1:8081` (loopback) |
 | TTS | `grep TTS_ENGINE` no `.env` do narrador | Kokoro **ou** Chatterbox `:8765` |
 | narrador | `main.py` | spectate `ws://127.0.0.1:8081/ws/spectate`; PCM `:8790` |
 | streamer | processo host (Xvfb+Chrome+ffmpeg) | **não** é o container `regenes_streamer` |

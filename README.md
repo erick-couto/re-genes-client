@@ -18,6 +18,7 @@ externa: seleção é sobreviver + reproduzir no mundo.
 |---|---|---|
 | `client_native/` | **executor Fase 2** — NEAT nativo (genoma direto) | ✅ |
 | `client_hyperneat/` | **executor Fase 2** — HyperNEAT (CPPN, codificação indireta) | ✅ |
+| `client_grn/` | **executor Fase 2** — GRN (sopa regulatória, ciclos + memória de concentração) | ✅ |
 | `regenes_agent.py` | SDK do Species Protocol (BaseAgent + loop) | — |
 | `controls/` | políticas hard-coded — válidas **só como controle** | ✅ (como referência) |
 | `legacy/` | quarentena: fitness explícita, valência fabricada, Lamarckismo e drift de protocolo | ❌ |
@@ -32,6 +33,7 @@ externa: seleção é sobreviver + reproduzir no mundo.
 |---|---|---|---|
 | `client_native` | **163** = 12 slots de escalares (bias acrescentado localmente; o `stomach_size` que o mundo envia vira denominador da normalização interoceptiva, §43/§50/§51) + 4 canais × 31 do cone (obstáculos, corpo, perigo, comida — borrados pela acuidade) + 3 campos × 9 químico por contato (cheiro-planta, cheiro-carne, sangue, §52) (`host.py:encode`, `host.py:40-41`) | 7 egocêntricas | `species=Native_NEAT`, `wants_brain=1`, `self_learns=0` |
 | `client_hyperneat` | **163** via substrato expresso pelo CPPN (163 entradas + 16 ocultos + 7 saídas = nós fixos, `substrate.py:75`; √n por sinapse, `substrate.py:147-169`) | 7 egocêntricas | `species=HyperNEAT`, `wants_brain=1`, `self_learns=0` |
+| `client_grn` | **163** via sopa (entradas 0–162 grampeadas, saídas 163–169, ocultos 200+; ciclos permitidos; estado = concentração que vaza entre ticks) | 7 egocêntricas | `species=GRN`, `wants_brain=1`, `self_learns=0` |
 | `controls/client_prokaryota` | ignora a visão | cardinais (drift — o mundo trata como desconhecidas) | `species=Prokaryota` |
 | `legacy/client_neat` | 104 montadas vs config 161 (drift) | 7 no SDK / cardinais no standalone | `species=NEAT_Evo` |
 | `legacy/client_es` | 159 (v6, sem sangue/ingested) | 7 | `species=ES_v1` |

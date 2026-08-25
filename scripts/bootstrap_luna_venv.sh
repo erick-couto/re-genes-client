@@ -12,11 +12,13 @@ chmod +x scripts/*.sh
 scripts/start_luna.sh
 sleep 2
 echo "=== procs ==="
-ps aux | grep -E "host.py|host_hyper" | grep -v grep || true
+ps aux | grep -E "host.py|host_hyper|host_grn" | grep -v grep || true
 echo "=== native log ==="
 tail -30 logs/native.log || true
 echo "=== hyper log ==="
 tail -30 logs/hyper.log || true
+echo "=== grn log ==="
+tail -30 logs/grn.log || true
 sleep 4
 curl -sS http://127.0.0.1:8081/
 echo
