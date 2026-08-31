@@ -27,9 +27,9 @@ from regua_scent import DietFilter, decide, FWD, BACK, TURN_L, TURN_R, STAY, ATT
 
 SPECIES = "ReguaScent"
 PARADIGM = "control_heuristic"
-PROTOCOL_VERSION = 7
+PROTOCOL_VERSION = 8
 N_OBS = 163
-N_ACTIONS = 7
+N_ACTIONS = 8
 
 BASE = os.getenv("REGENES_SERVER", sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8081")
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 1
@@ -49,8 +49,11 @@ ACTIONS = [
     {"action": "stay"},
     {"action": "attack"},
     {"action": "push"},
+    {"action": "bite"},
 ]
 assert len(ACTIONS) == N_ACTIONS
+# A régua decide entre as 7 ações originais — instrumento de medição não emite bocado
+# (declarar 8 no join sem nunca emitir é honesto: o shape é do protocolo, não da dieta dela).
 assert (FWD, BACK, TURN_L, TURN_R, STAY, ATTACK, PUSH) == tuple(range(7))
 
 

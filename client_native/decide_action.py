@@ -1,4 +1,5 @@
-"""Contrato do efetor: 7 saídas da rede -> índice da ação. Native e HyperNEAT.
+"""Contrato do efetor: 8 saídas da rede -> índice da ação. Native e HyperNEAT.
+(#72: a 8ª saída é o bocado — comer virou ação; a regra do juiz não muda.)
 
 NULL_EPS: nervo desconectado não dispara músculo (fica). Justificativa própria,
 medida: cérebro-zero ganhava "frente" de graça pelo argmax do índice 0.

@@ -22,11 +22,11 @@ def test_primordial_e_magro():
     assert gb.genes_count(g) == g.nh + gb.N_OUT + len(g.regs)
 
 
-def test_passo_devolve_7():
+def test_passo_devolve_8():
     g = gb.random_genome(7)
     soup = gb.Soup(g)
     out = soup.step([0.0] * gb.N_IN)
-    assert len(out) == 7
+    assert len(out) == gb.N_OUT
     assert all(abs(x) <= 1.0001 for x in out)
 
 
@@ -36,8 +36,8 @@ def test_memoria_quebra_o_congelamento_feedforward():
     hid, out0 = gb.HID0, gb.OUT0
     g = gb.Genome(
         1,
-        {hid: 0.0, **{out0 + i: 0.0 for i in range(7)}},
-        {hid: 0.15, **{out0 + i: 0.15 for i in range(7)}},
+        {hid: 0.0, **{out0 + i: 0.0 for i in range(gb.N_OUT)}},
+        {hid: 0.15, **{out0 + i: 0.15 for i in range(gb.N_OUT)}},
         [[0, hid, 2.0, True], [hid, hid, 1.5, True], [hid, out0, 2.0, True]],
     )
     quiet = [0.0] * gb.N_IN
@@ -73,15 +73,15 @@ def test_mutate_respeita_teto_de_ocultos():
 
 
 def test_ids_nao_colidem_com_saida_native():
-    """Native usa saídas 0–6. A sopa reserva 163–169 e esconde em 200+."""
+    """Native usa saídas 0–7 (#72: +bocado). A sopa reserva 163–170 e esconde em 200+."""
     assert gb.OUT0 == gb.N_IN == 163
     assert gb.HID0 >= gb.OUT0 + gb.N_OUT
     assert gb.HID0 == 200
 
 
 def test_funcional_nao_conta_aresta_que_nao_chega_na_saida():
-    g = gb.Genome(1, {gb.HID0: 0.0, **{gb.OUT0 + i: 0.0 for i in range(7)}},
-                  {gb.HID0: 0.25, **{gb.OUT0 + i: 0.25 for i in range(7)}},
+    g = gb.Genome(1, {gb.HID0: 0.0, **{gb.OUT0 + i: 0.0 for i in range(gb.N_OUT)}},
+                  {gb.HID0: 0.25, **{gb.OUT0 + i: 0.25 for i in range(gb.N_OUT)}},
                   [[0, gb.HID0, 1.0, True],          # input -> hidden (pode ser funcional)
                    [gb.HID0, gb.HID0 + 50, 1.0, True]])  # dst inexistente: ignora no alcance
     _fn, fc = gb.functional_complexity(g)

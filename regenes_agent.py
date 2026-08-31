@@ -36,16 +36,16 @@ import websockets
 SERVER_URL = os.getenv("REGENES_SERVER", "wss://re-genes.is")
 
 # §46 (R-SHAPE, card #38): contrato que a runtime DECLARA no join — o mundo valida
-# contra o /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). v7:
-# 163 observações (4×31 cone + 3×9 químico + 12 escalares), 7 ações egocêntricas — o fallback de
-# comandos em _run_one segue este mesmo shape.
+# contra o /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). v8 (#72):
+# 163 observações (4×31 cone + 3×9 químico + 12 escalares), 8 ações egocêntricas — comer
+# planta/carcaça virou o 8º efetor (bite); o fallback de comandos em _run_one segue o shape.
 #
 # ⚠️ n_obs é o que o MUNDO manda, não o que este SDK repassa ao decide(): o obs montado
 # em _run_one expõe 6 dos 12 escalares (faltam stomach_size, damage, impact, ingested e
 # os quatro da §50/§51). Lacuna PRÉ-EXISTENTE — quem precisar deles lê msg direto.
-PROTOCOL_VERSION = 7
+PROTOCOL_VERSION = 8
 N_OBS = 163
-N_ACTIONS = 7
+N_ACTIONS = 8
 
 
 def _make_ssl_context():
@@ -133,6 +133,7 @@ async def _run_one(agent: BaseAgent):
             {"wire": {"action": "stay"}},
             {"wire": {"action": "attack"}},
             {"wire": {"action": "push"}},
+            {"wire": {"action": "bite"}},
         ]
 
         while True:

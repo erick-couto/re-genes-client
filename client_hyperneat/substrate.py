@@ -74,7 +74,7 @@ for ch in range(3):
         INPUT_COORDS.append((l / 3.0, f / 6.0, CHEM_Z[ch]))
 assert len(INPUT_COORDS) == 163, len(INPUT_COORDS)
 
-# --- SAÍDAS (7): posicionadas pelo SIGNIFICADO DIRECIONAL da ação ---
+# --- SAÍDAS (8): posicionadas pelo SIGNIFICADO DIRECIONAL da ação ---
 # É isto que deixa a regra geométrica existir: "vira-esq" mora à esquerda (x=-1), então o CPPN
 # pode expressar "sensor com x<0 -> peso alto pra saída com x<0" como uma função de x1*x2.
 OUTPUT_COORDS = [
@@ -85,6 +85,7 @@ OUTPUT_COORDS = [
     (0.0,  0.0,  0.0),    # 4 fica      -> no centro (não vai a lugar nenhum)
     (0.0,  1.0,  1.0),    # 5 ataca     -> age à frente, camada de contato (z=+1)
     (0.0,  1.0, -1.0),    # 6 empurra   -> age à frente, outra camada (z=-1)
+    (0.0,  0.0,  1.0),    # 7 bocado    -> age AQUI (sob ela), camada de contato (z=+1) — #72
 ]
 
 # --- OCULTOS: grade 4x4 no plano do corpo. Substrato FIXO (HyperNEAT clássico): a topologia
@@ -183,7 +184,7 @@ def activate(W_ih, W_ho, inputs):
 # Assim a MESMA tela serve as duas especies — e a diferenca de arquitetura aparece sozinha: o
 # NEAT (sem camada oculta) mostra "cheiro[12] -> acao" no PORQUE; o HyperNEAT mostra "oculto",
 # porque nele o que alimenta a acao SAO os ocultos. E honesto: e a arquitetura dele mesmo.
-HIDDEN_ID_BASE = N_OUT   # 7: os ids 0..6 sao as saidas
+HIDDEN_ID_BASE = N_OUT   # 8: os ids 0..7 sao as saidas (#72: +bocado)
 
 
 def to_struct(W_ih, W_ho):

@@ -49,9 +49,9 @@ def _encode(hx):
 def test_declaracao_presente_na_url():
     for hx in HOSTS:
         d = _declarado(hx)
-        assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "7", hx.__name__
+        assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "8", hx.__name__
         assert d["n_obs"] == str(hx.N_OBS) == "163", hx.__name__
-        assert d["n_actions"] == str(hx.N_ACTIONS) == "7", hx.__name__
+        assert d["n_actions"] == str(hx.N_ACTIONS) == "8", hx.__name__
 
 
 def test_n_obs_e_o_vetor_real():
@@ -63,9 +63,9 @@ def test_n_obs_e_o_vetor_real():
 def test_n_actions_e_a_tabela_real():
     """O n_actions declarado é o tamanho da tabela que o decide() indexa."""
     for hx in HOSTS:
-        assert len(hx.ACTIONS) == hx.N_ACTIONS == 7, hx.__name__
+        assert len(hx.ACTIONS) == hx.N_ACTIONS == 8, hx.__name__
         assert [a["action"] for a in hx.ACTIONS] == [
-            "forward", "backward", "turn", "turn", "stay", "attack", "push"], hx.__name__
+            "forward", "backward", "turn", "turn", "stay", "attack", "push", "bite"], hx.__name__
 
 
 def test_paridade_da_declaracao():

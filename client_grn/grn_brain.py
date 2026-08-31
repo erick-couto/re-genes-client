@@ -3,8 +3,9 @@
 
 Não é NEAT: não há camadas, o grafo pode ter ciclos, o estado são CONCENTRAÇÕES
 que vazam de um tick para o outro. Entradas 0..162 são fatores de transcrição
-grampeados pelo mundo a cada tick (o mundo descreve). Saídas 163..169 são os
-sete efetores. Ocultos 200.. começam poucos e só crescem por mutação.
+grampeados pelo mundo a cada tick (o mundo descreve). Saídas 163..170 são os
+oito efetores (#72: +bocado — comer virou ação). Ocultos 200.. começam poucos e
+só crescem por mutação.
 
 Sem fitness. Herança = cruzamento + mutação no cliente; quem seleciona é o mundo.
 """
@@ -17,7 +18,7 @@ import math
 import random
 
 N_IN = 163
-N_OUT = 7
+N_OUT = 8
 OUT0 = N_IN                    # 163
 HID0 = 200
 MAX_HIDDEN = 24

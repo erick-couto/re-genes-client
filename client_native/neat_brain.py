@@ -42,8 +42,8 @@ from neat.innovation import InnovationTracker
 # processo/maquina/restart -> o crossover alinha de verdade (a diversidade que ele deve
 # misturar), sem colisao. E numeracao deterministica, sem estado global compartilhado.
 # =============================================================================
-_NODE_ID_BASE = 100_000  # nos de MUTACAO ficam >= isto; nunca colidem com saidas(0..6),
-                         # ocultos semeados(7..) nem inputs(negativos).
+_NODE_ID_BASE = 100_000  # nos de MUTACAO ficam >= isto; nunca colidem com saidas(0..7),
+                         # ocultos semeados(8..) nem inputs(negativos). #72: saidas sao 8.
 
 
 def _stable_hash(text: str, nbytes: int) -> int:
@@ -291,6 +291,22 @@ def build_net(genome):
     """Rede executável (forward pass) a partir do genoma."""
     cfg = load_config()
     return neat.nn.FeedForwardNetwork.create(genome, cfg)
+
+
+def ensure_outputs(genome):
+    """#72: genomas LEGADOS (7 saídas) ganham o nó da saída nova ao carregar — DESLIGADO,
+    sem conexão nenhuma: não vence o argmax até mutação ligar (o efetor morto que o card
+    declara, igual ao PUSH no 6→7). Sem isto, build_net levanta KeyError na saída que o
+    config exige. Nó já existente (legado mais antigo, oculto semeado no id) fica como
+    está — a linhagem em deploy decide o banco (arquivado/vazio), não o carregador."""
+    cfg = load_config()
+    missing = [k for k in cfg.genome_config.output_keys if k not in genome.nodes]
+    if not missing:
+        return
+    fresh = neat.DefaultGenome("__ensure_outputs")
+    fresh.configure_new(cfg.genome_config)   # nós com os atributos do config (bias/response/...)
+    for key in missing:
+        genome.nodes[key] = fresh.nodes[key].copy()
 
 
 def complexity(genome):

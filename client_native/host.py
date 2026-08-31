@@ -35,11 +35,12 @@ BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")  # dono da linhagem (carimbo na genealogia)
 # §46 (R-SHAPE, card #38): o contrato DECLARADO no join — o mundo valida contra o
 # /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). n_obs = o que o
-# encode() abaixo monta (8 escalares + 6×31 do cone); n_actions = len(ACTIONS).
+# encode() abaixo monta (12 escalares + 4×31 do cone + 3×9 químico); n_actions = len(ACTIONS).
 # Os três valores andam juntos com o encode/ACTIONS: se o shape mudar, muda aqui.
-PROTOCOL_VERSION = 7
+# v8 (#72): vetor intacto (163); comer planta/carcaça virou o 8º efetor (bite).
+PROTOCOL_VERSION = 8
 N_OBS = 163
-N_ACTIONS = 7
+N_ACTIONS = 8
 URL = (BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_topology"
        "&wants_brain=1&self_learns=0"
        f"&protocol_version={PROTOCOL_VERSION}&n_obs={N_OBS}&n_actions={N_ACTIONS}"
@@ -158,7 +159,7 @@ def encode(vision, chemical, energy, stomach, stomach_size, ingested, pace_sin, 
         inp.extend(chemical[ch])
     return inp
 
-# índice -> comando de wire (bate com ACTION_SPEC do mundo, v3 egocêntrico: 7 ações)
+# índice -> comando de wire (bate com ACTION_SPEC do mundo, v3 egocêntrico: 8 ações)
 ACTIONS = [
     {"action": "forward"},              # 0: anda pra frente (onde encara)
     {"action": "backward"},             # 1: recua (ré, sem virar)
@@ -167,6 +168,7 @@ ACTIONS = [
     {"action": "stay"},                 # 4: fica
     {"action": "attack"},               # 5: morde a célula à frente
     {"action": "push"},                 # 6: empurra a célula à frente (sem dano; massa decide)
+    {"action": "bite"},                 # 7: raspa a comida SOB ela (#72: comer virou ação)
 ]
 
 
@@ -206,6 +208,10 @@ async def run_one(idx: int):
                 else:
                     g = nb.random_genome(random.randint(1, 1_000_000))
                     origin = "primordial"
+
+                # #72: genoma legado (7 saídas) ganha o nó do bocado ao carregar — desligado,
+                # morto até mutação. Sem isto o build_net quebra na saída que o config exige.
+                nb.ensure_outputs(g)
 
                 # reporta o GENOMA final (compactado) + complexidade (telemetria pro mundo logar,
                 # sem ele precisar decodificar o blob — respeita "cérebro opaco"). O mundo envolve
@@ -266,7 +272,7 @@ async def run_one(idx: int):
                                 "inp": [round(x, 3) for x in inp],                       # 192 entradas (já borradas)
                                 "hid": {str(n): round(net.values.get(n, 0.0), 3)         # ocultos
                                         for n in g.nodes if n not in out_keys},
-                                "out": [round(x, 3) for x in out],                       # 7 saídas
+                                "out": [round(x, 3) for x in out],                       # 8 saídas
                                 "win": a,                                                 # ação vencedora
                             }
                             payload = {"type": "brain_viz", "act": act}

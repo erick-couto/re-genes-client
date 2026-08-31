@@ -30,9 +30,9 @@ from decide_action import decide  # noqa: E402
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")
-PROTOCOL_VERSION = 7
+PROTOCOL_VERSION = 8
 N_OBS = 163
-N_ACTIONS = 7
+N_ACTIONS = 8
 URL = (BASE.rstrip("/") + "/ws/join?species=GRN&paradigm=gene_regulatory_network"
        "&wants_brain=1&self_learns=0"
        f"&protocol_version={PROTOCOL_VERSION}&n_obs={N_OBS}&n_actions={N_ACTIONS}"
@@ -130,6 +130,7 @@ ACTIONS = [
     {"action": "stay"},
     {"action": "attack"},
     {"action": "push"},
+    {"action": "bite"},   # 7: raspa a comida SOB ela (#72: comer virou ação)
 ]
 
 

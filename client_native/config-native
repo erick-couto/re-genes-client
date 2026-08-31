@@ -110,14 +110,15 @@ node_delete_prob        = 0.0
 # + 6 canais x 31 (cone de visao pra frente; o 6o canal e o campo de sangue/memoria de violencia).
 # R4/#3 (08/2026): o slot 3 era a endorfina FABRICADA pelo executor (pico/decaimento/fome);
 # agora e o ingested — fato bruto do TICK, normalizado pelo stomach_size. Shape/ordem intactos.
-# 7 saidas (frente, tras, vira-esq, vira-dir, fica, ataca-frente, EMPURRA-frente).
+# 8 saidas (frente, tras, vira-esq, vira-dir, fica, ataca-frente, EMPURRA-frente, BOCADO).
 # Trocar num_inputs/outputs exige RESET (161 -> 192 na v4.0, 192 -> 194 na v6.0,
-# 194 -> 198 na v7.0: propriocepcao do desfecho + pele, §50/§51 do #43).
+# 194 -> 198 na v7.0: propriocepcao do desfecho + pele, §50/§51 do #43; 7 -> 8 saidas no
+# #72: comer virou acao, saida nova nasce sem fio ate mutacao).
 # num_hidden=0: NASCER MAGRO -- sem camada oculta semeada; a profundidade emerge por node_add
 # sob selecao (NEAT canonico). Era 8 (semeadura imposta); ver Structural mutation options.
 num_hidden              = 0
 num_inputs              = 163
-num_outputs             = 7
+num_outputs             = 8
 
 [DefaultSpeciesSet]
 compatibility_threshold = 4.0
