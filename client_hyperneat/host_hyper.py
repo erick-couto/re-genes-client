@@ -41,7 +41,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import neat_brain as nb          # noqa: E402
 import substrate as sub          # noqa: E402
 import cone_psf                  # noqa: E402  R-BLUR: MESMA PSF do nativo (encode idêntico)
-from decide_action import NULL_EPS, decide  # noqa: E402  efetor = Native (5-bis / §14.5)
+from decide_action import NULL_EPS, decide  # noqa: E402  efetor = Native (#46 / §14.5)
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
