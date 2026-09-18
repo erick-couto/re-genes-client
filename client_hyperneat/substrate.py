@@ -59,8 +59,10 @@ INPUT_COORDS = []
 # mesma fileira ATRAS do corpo. O espacamento passa de i/7 para i/11, o que MOVE todos os
 # escalares: por isso a mudanca de shape exige RESET (CPPN arquivado geraria peso diferente
 # para a mesma entrada). Com banco vazio, o custo e zero.
-for i in range(12):
-    INPUT_COORDS.append((-1.0 + 2.0 * i / 11.0, -1.2, 0.0))
+# §50/§51 (#43): de 8 para 12 escalares. #83: 13º (delivered) — mismatch desta contração.
+# Com gênese nova, respaçar i/12. O 13º move os anteriores; reset é o caminho limpo.
+for i in range(13):
+    INPUT_COORDS.append((-1.0 + 2.0 * i / 12.0, -1.2, 0.0))
 # 6 canais x 31 células do cone: x = lateral (esq<0, dir>0), y = distância à frente
 # 52 (#44): o cone perdeu cheiro e sangue — sobram 4 canais de VISAO.
 for ch in range(4):
@@ -72,7 +74,7 @@ for ch in range(4):
 for ch in range(3):
     for (f, l) in CHEM_OFFSETS:
         INPUT_COORDS.append((l / 3.0, f / 6.0, CHEM_Z[ch]))
-assert len(INPUT_COORDS) == 163, len(INPUT_COORDS)
+assert len(INPUT_COORDS) == 164, len(INPUT_COORDS)
 
 # --- SAÍDAS (8): posicionadas pelo SIGNIFICADO DIRECIONAL da ação ---
 # É isto que deixa a regra geométrica existir: "vira-esq" mora à esquerda (x=-1), então o CPPN

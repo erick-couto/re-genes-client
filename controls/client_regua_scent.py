@@ -27,8 +27,8 @@ from regua_scent import DietFilter, decide, FWD, BACK, TURN_L, TURN_R, STAY, ATT
 
 SPECIES = "ReguaScent"
 PARADIGM = "control_heuristic"
-PROTOCOL_VERSION = 8
-N_OBS = 163
+PROTOCOL_VERSION = 9
+N_OBS = 164
 N_ACTIONS = 8
 
 BASE = os.getenv("REGENES_SERVER", sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8081")

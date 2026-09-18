@@ -65,9 +65,9 @@ def test_nao_vaza_entre_ticks():
         assert _encode(hx, 0.0)[3] == 0.0, hx.__name__
 
 
-def test_shape_163_preservado():
+def test_shape_164_preservado():
     for hx in HOSTS:
-        assert len(_encode(hx, 25.0)) == 163, hx.__name__
+        assert len(_encode(hx, 25.0)) == 164, hx.__name__
 
 
 def test_paridade_dos_dois_executores():

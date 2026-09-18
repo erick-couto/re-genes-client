@@ -28,18 +28,57 @@ import time
 import websockets
 import neat_brain as nb
 import cone_psf                      # R-BLUR: PSF na geometria do cone (compartilhado c/ o hyper)
-from decide_action import NULL_EPS, decide  # efetor compartilhado c/ HyperNEAT (5-bis)
+from decide_action import NULL_EPS, decide  # efetor compartilhado (Native/Hyper/GRN; #46)
+
+# ---------------------------------------------------------------- CAPTURA DO VETOR REAL
+# POR QUE ISTO EXISTE. O estudo `viabilidade_plasticidade.py` (#22/#26) RE-IMPLEMENTA a
+# codificacao sensorial para replayar vidas offline. Essa replica ja divergiu do cliente uma
+# vez, e o fecho do #22 registra o estrago: "nove defeitos no instrumento, TODOS empurrando
+# para reprovar", o pior deles 93 das 194 entradas em zero por construcao. A replica tambem
+# esta obsoleta hoje -- ela monta 6 canais de cone (194 entradas) e o cliente monta 12
+# escalares + 4 canais de cone + 3 quimicos de contato (163).
+#
+# Em vez de reescrever a replica e apostar de novo, o cliente grava o vetor que ELE computou.
+# Sem replica nao ha divergencia possivel, nunca mais, e mudanca futura de sensor nao quebra o
+# estudo -- ela aparece no arquivo.
+#
+# DESLIGADO por padrao: so grava com a variavel de ambiente ENCODE_CAP apontando um arquivo.
+# NAO muda decisao, nao muda RNG, nao toca fisica: e um write depois do encode.
+_CAP_PATH = os.environ.get("ENCODE_CAP")
+_CAP_FH = None
+_CAP_N = 0
+
+
+def _cap_encode(tick, aid, inp):
+    """Uma linha JSONL por ameba por tick: {"t":.., "id":.., "v":[164 floats]}.
+
+    Buffer do proprio arquivo, flush a cada 200 linhas: o cliente responde dentro de um prazo
+    de barreira de 150 ms, e flush por linha seria I/O sincrono no caminho quente."""
+    global _CAP_FH, _CAP_N
+    if not _CAP_PATH:
+        return
+    try:
+        if _CAP_FH is None:
+            _CAP_FH = open(_CAP_PATH, "a", encoding="utf-8")
+        _CAP_FH.write(json.dumps({"t": tick, "id": aid,
+                                  "v": [round(float(x), 6) for x in inp]},
+                                 separators=(",", ":")) + "\n")
+        _CAP_N += 1
+        if _CAP_N % 200 == 0:
+            _CAP_FH.flush()
+    except Exception:
+        pass          # captura NUNCA pode derrubar a ameba: falhou, segue sem gravar
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")  # dono da linhagem (carimbo na genealogia)
 # §46 (R-SHAPE, card #38): o contrato DECLARADO no join — o mundo valida contra o
 # /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). n_obs = o que o
-# encode() abaixo monta (12 escalares + 4×31 do cone + 3×9 químico); n_actions = len(ACTIONS).
+# encode() abaixo monta (13 escalares + 4×31 do cone + 3×9 químico); n_actions = len(ACTIONS).
 # Os três valores andam juntos com o encode/ACTIONS: se o shape mudar, muda aqui.
-# v8 (#72): vetor intacto (163); comer planta/carcaça virou o 8º efetor (bite).
-PROTOCOL_VERSION = 8
-N_OBS = 163
+# v9 (#83): +delivered (nervo do mismatch). 164 entradas.
+PROTOCOL_VERSION = 9
+N_OBS = 164
 N_ACTIONS = 8
 URL = (BASE.rstrip("/") + "/ws/join?species=Native_NEAT&paradigm=neuroevolution_topology"
        "&wants_brain=1&self_learns=0"
@@ -123,11 +162,12 @@ def _blur(row, P):
 def encode(vision, chemical, energy, stomach, stomach_size, ingested, pace_sin, pace_cos,
            acuity,
            damage=0.0, impact=0.0,
-           moved_self=0.0, moved_passive=0.0, contact_body=0.0, contact_wall=0.0):
+           moved_self=0.0, moved_passive=0.0, contact_body=0.0, contact_wall=0.0,
+           delivered=1.0):
     if not vision or len(vision) < 4 or len(vision[0]) < 31:
-        return [0.0] * 163
+        return [0.0] * 164
     if not chemical or len(chemical) < 3 or len(chemical[0]) < 9:
-        return [0.0] * 163
+        return [0.0] * 164
     P = acuity[0]
     ss = stomach_size or 1.0
     # §26: damage/impact = FATO BRUTO interoceptivo (dano de mordida e impacto de colisão
@@ -146,7 +186,7 @@ def encode(vision, chemical, energy, stomach, stomach_size, ingested, pace_sin, 
            #   contact_body/contact_wall: PELE. Fracao das 4 ortogonais ocupadas,
            #     360 graus, independente do heading. O cone e OLHO e nao ve atras;
            #     estar cercada e exatamente quando a informacao esta fora do cone.
-           moved_self, moved_passive, contact_body, contact_wall]
+           moved_self, moved_passive, contact_body, contact_wall, delivered]
     # §23: 6º canal (sangue) entra como o cheiro — traço QUÍMICO, legível por qualquer cérebro.
     # 52 (#44): o cone tem 4 canais de VISAO (obstaculo, corpo, perigo, comida). O
     # borrao da acuidade e a PSF geometrica DO CONE — do olho. Nao se aplica a quimico.
@@ -186,6 +226,9 @@ async def run_one(idx: int):
                                           close_timeout=1) as ws:
                 welcome = json.loads(await ws.recv())
                 t_born = time.perf_counter()
+                # id do MUNDO (nao o indice do processo): e a chave que casa esta vida com o
+                # `id` das amebas na captura de espectador, e com o `death_log`.
+                meu_id = welcome.get("id")
                 seed_a = welcome.get("brain_a")
                 seed_b = welcome.get("brain_b")
                 body = welcome.get("body") or welcome.get("stats") or {}
@@ -259,7 +302,10 @@ async def run_one(idx: int):
                                      moved_self=msg.get("moved_self", 0.0),
                                      moved_passive=msg.get("moved_passive", 0.0),
                                      contact_body=msg.get("contact_body", 0.0),
-                                     contact_wall=msg.get("contact_wall", 0.0))
+                                     contact_wall=msg.get("contact_wall", 0.0),
+                                     delivered=msg.get("delivered", 1.0))
+                        # captura do vetor REAL, antes de qualquer decisao (ver _cap_encode)
+                        _cap_encode(msg.get("tick"), meu_id, inp)
                         out = net.activate(inp)
                         a = decide(out)
                         await ws.send(json.dumps(ACTIONS[a]))

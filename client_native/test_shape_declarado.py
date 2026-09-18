@@ -49,15 +49,15 @@ def _encode(hx):
 def test_declaracao_presente_na_url():
     for hx in HOSTS:
         d = _declarado(hx)
-        assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "8", hx.__name__
-        assert d["n_obs"] == str(hx.N_OBS) == "163", hx.__name__
+        assert d["protocol_version"] == str(hx.PROTOCOL_VERSION) == "9", hx.__name__
+        assert d["n_obs"] == str(hx.N_OBS) == "164", hx.__name__
         assert d["n_actions"] == str(hx.N_ACTIONS) == "8", hx.__name__
 
 
 def test_n_obs_e_o_vetor_real():
     """O n_obs declarado é o que o encode() de fato monta — sem letra morta."""
     for hx in HOSTS:
-        assert len(_encode(hx)) == hx.N_OBS == 163, hx.__name__
+        assert len(_encode(hx)) == hx.N_OBS == 164, hx.__name__
 
 
 def test_n_actions_e_a_tabela_real():
@@ -114,6 +114,9 @@ def test_escalares_novos_do_43_entram_sem_normalizacao():
         assert inp[9] == 1.0, f"{hx.__name__}: moved_passive deformado"
         assert inp[10] == 0.75, f"{hx.__name__}: contact_body deformado"
         assert inp[11] == 0.25, f"{hx.__name__}: contact_wall deformado"
+        inp2 = hx.encode(vis, qui, 30.0, 0.0, 500.0, 0.0, 0.0, 1.0, ac,
+                         delivered=0.0)
+        assert inp2[12] == 0.0, f"{hx.__name__}: delivered deformado"
 
 
 def test_escalares_novos_tem_default_zero():
@@ -123,4 +126,5 @@ def test_escalares_novos_tem_default_zero():
         inp = hx.encode([[0.0] * 31 for _ in range(4)], [[0.0] * 9 for _ in range(3)],
                             30.0, 0.0, 50.0, 0.0, 0.0, 1.0, ac)
         assert inp[8:12] == [0.0, 0.0, 0.0, 0.0], f"{hx.__name__}: default nao e zero"
-        assert len(inp) == 163
+        assert inp[12] == 1.0, f"{hx.__name__}: delivered default e 1 (sem mismatch)"
+        assert len(inp) == 164

@@ -73,8 +73,8 @@ def test_mutate_respeita_teto_de_ocultos():
 
 
 def test_ids_nao_colidem_com_saida_native():
-    """Native usa saídas 0–7 (#72: +bocado). A sopa reserva 163–170 e esconde em 200+."""
-    assert gb.OUT0 == gb.N_IN == 163
+    """Native usa saídas 0–7 (#72: +bocado). A sopa reserva 164–171 e esconde em 200+."""
+    assert gb.OUT0 == gb.N_IN == 164
     assert gb.HID0 >= gb.OUT0 + gb.N_OUT
     assert gb.HID0 == 200
 

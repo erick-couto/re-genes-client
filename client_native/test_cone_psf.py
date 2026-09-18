@@ -181,7 +181,7 @@ def test_os_tres_executores_usam_a_mesma_psf():
         a = hn.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hn.acuity_params(conns))
         b = hh.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hh.acuity_params(conns))
         c = hg.encode(vis, qui, 30.0, 5.0, 50.0, 50.0, 0.0, 1.0, hg.acuity_params(conns))
-        assert len(a) == len(b) == len(c) == 163
+        assert len(a) == len(b) == len(c) == 164
         assert all(abs(x - y) < 1e-12 for x, y in zip(a, b)), f"native/hyper divergem em conns={conns}"
         assert all(abs(x - y) < 1e-12 for x, y in zip(a, c)), f"native/grn divergem em conns={conns}"
 

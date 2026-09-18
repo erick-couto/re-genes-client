@@ -30,8 +30,8 @@ from decide_action import decide  # noqa: E402
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")
-PROTOCOL_VERSION = 8
-N_OBS = 163
+PROTOCOL_VERSION = 9
+N_OBS = 164
 N_ACTIONS = 8
 URL = (BASE.rstrip("/") + "/ws/join?species=GRN&paradigm=gene_regulatory_network"
        "&wants_brain=1&self_learns=0"
@@ -88,17 +88,18 @@ def _blur(row, P):
 def encode(vision, chemical, energy, stomach, stomach_size, ingested, pace_sin, pace_cos,
            acuity,
            damage=0.0, impact=0.0,
-           moved_self=0.0, moved_passive=0.0, contact_body=0.0, contact_wall=0.0):
+           moved_self=0.0, moved_passive=0.0, contact_body=0.0, contact_wall=0.0,
+           delivered=1.0):
     """IDÊNTICO ao Native/Hyper — o mundo fala uma língua só."""
     if not vision or len(vision) < 4 or len(vision[0]) < 31:
-        return [0.0] * 163
+        return [0.0] * 164
     if not chemical or len(chemical) < 3 or len(chemical[0]) < 9:
-        return [0.0] * 163
+        return [0.0] * 164
     P = acuity[0]
     ss = stomach_size or 1.0
     inp = [1.0, min(1.0, energy / ss), min(stomach, ss) / ss, min(1.0, ingested / ss),
            pace_sin, pace_cos, min(1.0, damage / ss), min(1.0, impact / ss),
-           moved_self, moved_passive, contact_body, contact_wall]
+           moved_self, moved_passive, contact_body, contact_wall, delivered]
     for ch in range(4):
         inp.extend(_blur(vision[ch], P))
     for ch in range(3):
@@ -196,7 +197,8 @@ async def run_one(idx: int):
                                      moved_self=msg.get("moved_self", 0.0),
                                      moved_passive=msg.get("moved_passive", 0.0),
                                      contact_body=msg.get("contact_body", 0.0),
-                                     contact_wall=msg.get("contact_wall", 0.0))
+                                     contact_wall=msg.get("contact_wall", 0.0),
+                                     delivered=msg.get("delivered", 1.0))
                         out = soup.step(inp)
                         a = decide(out)
                         await ws.send(json.dumps(ACTIONS[a]))

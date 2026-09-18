@@ -48,9 +48,9 @@ BASE = sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8000"
 OP = os.getenv("REGENES_OPERATOR", "")
 # §46 (R-SHAPE, card #38): o contrato DECLARADO no join — o mundo valida contra o
 # /protocol dele (passo 1: avisa; passo 2: recusa com close 4001). MESMO shape do
-# nativo (§15/§16): encode() monta 163, ACTIONS tem 8. v8 (#72): +bite (comer virou ação).
-PROTOCOL_VERSION = 8
-N_OBS = 163
+# nativo (§15/§16): encode() monta 164, ACTIONS tem 8. v9 (#83): +delivered.
+PROTOCOL_VERSION = 9
+N_OBS = 164
 N_ACTIONS = 8
 URL = (BASE.rstrip("/") + "/ws/join?species=HyperNEAT&paradigm=hyperneat_cppn"
        "&wants_brain=1&self_learns=0"
@@ -105,13 +105,14 @@ def _blur(row, P):
 def encode(vision, chemical, energy, stomach, stomach_size, ingested, pace_sin, pace_cos,
            acuity,
            damage=0.0, impact=0.0,
-           moved_self=0.0, moved_passive=0.0, contact_body=0.0, contact_wall=0.0):
-    """IDÊNTICO ao do nativo — mesma ordem das 194 entradas. Tem que ser: o substrato mapeia
+           moved_self=0.0, moved_passive=0.0, contact_body=0.0, contact_wall=0.0,
+           delivered=1.0):
+    """IDÊNTICO ao do nativo — mesma ordem das 164 entradas. Tem que ser: o substrato mapeia
     coordenada por ÍNDICE (substrate.INPUT_COORDS segue esta mesma ordem)."""
     if not vision or len(vision) < 4 or len(vision[0]) < 31:
-        return [0.0] * 163
+        return [0.0] * 164
     if not chemical or len(chemical) < 3 or len(chemical[0]) < 9:
-        return [0.0] * 163
+        return [0.0] * 164
     P = acuity[0]
     ss = stomach_size or 1.0
     # §26: damage/impact = fato bruto interoceptivo, normalizado pelo próprio estômago.
@@ -126,7 +127,7 @@ def encode(vision, chemical, energy, stomach, stomach_size, ingested, pace_sin, 
            #   contact_body/contact_wall: PELE. Fracao das 4 ortogonais ocupadas,
            #     360 graus, independente do heading. O cone e OLHO e nao ve atras;
            #     estar cercada e exatamente quando a informacao esta fora do cone.
-           moved_self, moved_passive, contact_body, contact_wall]
+           moved_self, moved_passive, contact_body, contact_wall, delivered]
     # §23: 6º canal (sangue) como o cheiro — traço químico, legível por qualquer cérebro.
     # 52 (#44): o cone tem 4 canais de VISAO (obstaculo, corpo, perigo, comida). O
     # borrao da acuidade e a PSF geometrica DO CONE — do olho. Nao se aplica a quimico.
@@ -231,7 +232,8 @@ async def run_one(idx: int):
                                      moved_self=msg.get("moved_self", 0.0),
                                      moved_passive=msg.get("moved_passive", 0.0),
                                      contact_body=msg.get("contact_body", 0.0),
-                                     contact_wall=msg.get("contact_wall", 0.0))
+                                     contact_wall=msg.get("contact_wall", 0.0),
+                                     delivered=msg.get("delivered", 1.0))
                         out, hid = sub.activate(W_ih, W_ho, inp)
                         a = decide(out)
                         await ws.send(json.dumps(ACTIONS[a]))

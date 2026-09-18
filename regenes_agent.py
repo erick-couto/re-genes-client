@@ -43,8 +43,8 @@ SERVER_URL = os.getenv("REGENES_SERVER", "wss://re-genes.is")
 # ⚠️ n_obs é o que o MUNDO manda, não o que este SDK repassa ao decide(): o obs montado
 # em _run_one expõe 6 dos 12 escalares (faltam stomach_size, damage, impact, ingested e
 # os quatro da §50/§51). Lacuna PRÉ-EXISTENTE — quem precisar deles lê msg direto.
-PROTOCOL_VERSION = 8
-N_OBS = 163
+PROTOCOL_VERSION = 9
+N_OBS = 164
 N_ACTIONS = 8
 
 

@@ -2,10 +2,10 @@
 """Sopa regulatória — o cérebro GRN (terceira espécie).
 
 Não é NEAT: não há camadas, o grafo pode ter ciclos, o estado são CONCENTRAÇÕES
-que vazam de um tick para o outro. Entradas 0..162 são fatores de transcrição
-grampeados pelo mundo a cada tick (o mundo descreve). Saídas 163..170 são os
-oito efetores (#72: +bocado — comer virou ação). Ocultos 200.. começam poucos e
-só crescem por mutação.
+que vazam de um tick para o outro. Entradas 0..163 são fatores de transcrição
+grampeados pelo mundo a cada tick (o mundo descreve). Saídas 164..171 são os
+oito efetores (#72: +bocado — comer virou ação; #83: +delivered deslocou OUT0).
+Ocultos 200.. começam poucos e só crescem por mutação.
 
 Sem fitness. Herança = cruzamento + mutação no cliente; quem seleciona é o mundo.
 """
@@ -17,9 +17,9 @@ import json
 import math
 import random
 
-N_IN = 163
+N_IN = 164
 N_OUT = 8
-OUT0 = N_IN                    # 163
+OUT0 = N_IN                    # 164
 HID0 = 200
 MAX_HIDDEN = 24
 N_HID_BIRTH = 6
