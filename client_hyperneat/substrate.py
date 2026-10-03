@@ -3,7 +3,7 @@ substrate.py — o CORPO GEOMÉTRICO do cérebro HyperNEAT.
 
 A diferença central pro NEAT direto: aqui o cérebro SABE onde cada sensor mora.
 
-No NEAT direto, as 192 entradas são independentes e sem relação entre si — pra evoluir
+No NEAT direto, as entradas (164 no protocolo v9) são independentes e sem relação entre si — pra evoluir
 "comida à esquerda -> vira esquerda" a evolução precisa sortear ~31 fios caindo cada um na
 ação certa com o sinal certo (medido no genoma real: comida->frente tem 3 fios, com 33 pesos
 positivos e 44 NEGATIVOS — se anulam, efeito líquido ~0).
@@ -173,7 +173,7 @@ def _fire(pares):
 
 
 def activate(W_ih, W_ho, inputs):
-    """Forward pass do substrato: 192 -> 16 (tanh) -> 7 (tanh). Devolve (saidas, ocultos)."""
+    """Forward pass do substrato: N_IN -> 16 (tanh) -> N_OUT (tanh); hoje 164 -> 16 -> 8. Devolve (saidas, ocultos)."""
     hid = [_fire(zip(W_ih[h], inputs)) for h in range(N_HID)]
     out = [_fire((W_ho[o][h], hid[h]) for h in range(N_HID)) for o in range(N_OUT)]
     return out, hid
